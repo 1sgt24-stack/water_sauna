@@ -336,84 +336,6 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
 .accuracy-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:3px;}
 .accuracy-fill{height:100%;border-radius:3px;background:var(--green);}
 
-/* ── 로그인 화면 ── */
-#login-screen{
-  position:fixed;inset:0;background:var(--bg);z-index:1000;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Pretendard','Noto Sans KR',sans-serif;
-}
-.login-box{
-  background:var(--surface);border:1px solid var(--border2);
-  border-radius:20px;padding:40px;width:100%;max-width:400px;
-  box-shadow:0 24px 64px rgba(0,0,0,.6);
-}
-.login-logo{
-  text-align:center;margin-bottom:32px;
-}
-.login-logo-icon{
-  width:56px;height:56px;border-radius:14px;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));
-  display:flex;align-items:center;justify-content:center;
-  font-size:26px;margin:0 auto 12px;
-}
-.login-logo-title{font-size:22px;font-weight:800;margin-bottom:4px;}
-.login-logo-sub{font-size:12px;color:var(--text3);}
-.login-input{
-  width:100%;background:var(--bg);border:1px solid var(--border);
-  border-radius:10px;padding:12px 14px;font-size:14px;color:var(--text);
-  font-family:'Pretendard','Noto Sans KR',sans-serif;outline:none;
-  transition:border-color .2s;margin-bottom:12px;
-}
-.login-input:focus{border-color:var(--accent);}
-.login-input::placeholder{color:var(--text3);}
-.login-btn{
-  width:100%;padding:13px;background:var(--accent);color:#fff;
-  border:none;border-radius:10px;font-size:15px;font-weight:700;
-  cursor:pointer;font-family:'Pretendard','Noto Sans KR',sans-serif;
-  transition:background .15s;margin-top:4px;
-}
-.login-btn:hover{background:#3a7af0;}
-.login-btn:active{background:#2d6de0;}
-.login-error{
-  background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
-  border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);
-  margin-bottom:14px;display:none;
-}
-.login-role-badge{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;
-}
-
-/* ── 사용자 정보 (헤더) ── */
-.user-info-btn{
-  display:flex;align-items:center;gap:8px;
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:8px;padding:5px 10px;cursor:pointer;
-  font-size:12px;font-weight:600;color:var(--text2);
-  transition:border-color .15s;
-}
-.user-info-btn:hover{border-color:var(--accent);}
-.user-avatar{
-  width:24px;height:24px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:700;color:#fff;flex-shrink:0;
-}
-
-/* ── 권한 차단 표시 ── */
-.perm-disabled{
-  opacity:.35;pointer-events:none;position:relative;
-}
-.perm-lock::after{
-  content:'🔒';position:absolute;top:50%;left:50%;
-  transform:translate(-50%,-50%);font-size:18px;
-}
-
-/* ── 사용자 관리 모달 ── */
-.user-row{
-  display:flex;align-items:center;gap:10px;padding:10px 12px;
-  background:var(--surface2);border-radius:8px;margin-bottom:6px;
-}
-
 /* ── MOBILE ── */
 @media(max-width:768px){
 
@@ -498,112 +420,13 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Firebase SDK (CDN) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="toast-wrap" id="toast-wrap"></div>
-
-<!-- ── 로그인 화면 ── -->
-<div id="login-screen">
-  <div class="login-box">
-    <div class="login-logo">
-      <div class="login-logo-icon">♨</div>
-      <div class="login-logo-title">사우나 비품관리</div>
-      <div class="login-logo-sub">SAUNA INVENTORY SYSTEM</div>
-    </div>
-    <div id="login-error" class="login-error"></div>
-    <input class="login-input" id="login-email" type="email" placeholder="이메일 주소"
-      onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()">
-    <input class="login-input" id="login-pw" type="password" placeholder="비밀번호"
-      onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="login-btn" id="login-btn" onclick="doLogin()">로그인</button>
-    <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text3)">
-      계정이 없으신가요? 관리자에게 문의하세요
-    </div>
-  </div>
-</div>
-
-<!-- ── 사용자 관리 모달 ── -->
-<div class="moverlay" id="user-mgmt-modal">
-  <div class="modal" style="max-width:500px">
-    <div class="mhead">
-      <div class="mtitle">👥 사용자 관리</div>
-      <button class="xbtn" onclick="closeM('user-mgmt-modal')">✕</button>
-    </div>
-    <div class="mbody">
-      <!-- 새 계정 생성 -->
-      <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">➕ 새 계정 추가</div>
-        <div class="frow">
-          <div class="fg" style="margin-bottom:8px">
-            <label class="fl">이름</label>
-            <input class="fi" id="new-user-name" placeholder="홍길동">
-          </div>
-          <div class="fg" style="margin-bottom:8px">
-            <label class="fl">역할</label>
-            <select class="fse" id="new-user-role">
-              <option value="staff">직원 (입출고·조회)</option>
-              <option value="admin">관리자 (전체)</option>
-              <option value="viewer">열람자 (조회만)</option>
-            </select>
-          </div>
-        </div>
-        <div class="frow">
-          <div class="fg" style="margin-bottom:8px">
-            <label class="fl">이메일</label>
-            <input class="fi" id="new-user-email" type="email" placeholder="email@example.com">
-          </div>
-          <div class="fg" style="margin-bottom:8px">
-            <label class="fl">초기 비밀번호</label>
-            <input class="fi" id="new-user-pw" type="password" placeholder="6자 이상">
-          </div>
-        </div>
-        <button class="btn btn-primary" style="width:100%" onclick="createUser()">계정 생성</button>
-        <!-- Firebase 콘솔 대안 안내 -->
-        <div style="margin-top:10px;padding:10px;background:rgba(79,142,247,.08);
-          border:1px solid rgba(79,142,247,.2);border-radius:8px;font-size:11px;
-          color:var(--text3);line-height:1.7">
-          💡 <b style="color:var(--accent)">계정 생성이 안 될 경우</b><br>
-          <a href="https://console.firebase.google.com" target="_blank"
-            style="color:var(--accent)">Firebase 콘솔</a> →
-          Authentication → 사용자 → 사용자 추가<br>
-          이메일/비밀번호 입력 후 생성 → 여기서 역할만 지정
-        </div>
-      </div>
-      <!-- 사용자 목록 -->
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📋 등록된 사용자</div>
-      <div id="user-list"></div>
-    </div>
-  </div>
-</div>
-
-<!-- ── 내 계정 모달 ── -->
-<div class="moverlay" id="my-account-modal">
-  <div class="modal" style="max-width:400px">
-    <div class="mhead">
-      <div class="mtitle">👤 내 계정</div>
-      <button class="xbtn" onclick="closeM('my-account-modal')">✕</button>
-    </div>
-    <div class="mbody">
-      <div id="my-account-info" style="margin-bottom:16px"></div>
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">🔑 비밀번호 변경</div>
-      <div class="fg">
-        <label class="fl">새 비밀번호</label>
-        <input class="fi" id="new-pw-input" type="password" placeholder="6자 이상">
-      </div>
-      <div class="fg">
-        <label class="fl">비밀번호 확인</label>
-        <input class="fi" id="new-pw-confirm" type="password" placeholder="다시 입력">
-      </div>
-    </div>
-    <div class="mfoot">
-      <button class="btn btn-danger" onclick="doLogout()">로그아웃</button>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="closeM('my-account-modal')">취소</button>
-        <button class="btn btn-primary" onclick="changePassword()">비밀번호 변경</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ── HEADER ── -->
 <header class="hdr">
@@ -618,12 +441,6 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
     <span id="hdr-search-clear" style="color:var(--text3);cursor:pointer;font-size:12px;display:none" onclick="clearGlobalSearch()">✕</span>
   </div>
   <div class="hdr-actions">
-    <!-- 사용자 정보 버튼 -->
-    <div class="user-info-btn" id="user-info-btn" onclick="openMyAccount()" style="display:none">
-      <div class="user-avatar" id="user-avatar" style="background:var(--accent)"></div>
-      <span id="user-display-name"></span>
-      <span id="user-role-badge"></span>
-    </div>
     <!-- 알림 벨 버튼 -->
     <button id="alert-bell-btn" onclick="toggleAlertPanel()"
       style="position:relative;background:none;border:1px solid var(--border);
@@ -685,11 +502,6 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
   <div class="sidebar-section">보고서</div>
   <div class="nav-item" id="nav-report" onclick="goTab('report',this)">
     <span class="nav-item-icon">📄</span> 월간 보고서
-  </div>
-
-  <div class="sidebar-section" id="nav-section-admin" style="display:none">관리자</div>
-  <div class="nav-item" id="nav-users" onclick="openUserMgmt()" style="display:none">
-    <span class="nav-item-icon">👥</span> 사용자 관리
   </div>
 </nav>
 
@@ -1311,11 +1123,6 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
 
 <div class="toast-wrap" id="toasts"></div>
 
-<!-- Firebase SDK — 메인 스크립트 직전에 로드 -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-
 <script>
 // ════════════════════════════════════════════════════
 //  STORAGE KEYS
@@ -1330,15 +1137,8 @@ const SK_PERHEAD  = 'sauna_perhead_v1';   // 1인당 소모량 설정
 // ════════════════════════════════════════════════════
 //  FIREBASE 초기화
 // ════════════════════════════════════════════════════
-if(typeof firebase === 'undefined'){
-  document.getElementById('login-screen').innerHTML =
-    '<div style="color:#ef4444;padding:40px;text-align:center;font-size:14px">' +
-    '⚠️ Firebase SDK 로드 실패<br><br>' +
-    '인터넷 연결을 확인하고 페이지를 새로고침(F5) 해주세요.</div>';
-  throw new Error('Firebase SDK not loaded');
-}
 const firebaseConfig = {
-  apiKey: "AIzaSyABtJnwGMAhEPEfSCSf_cd6glzB_Fwan08",
+  apiKey: "AIzaSyABtJnwGMAhEPEfsSCSf_cd6glzB_Fwan08",
   authDomain: "test-f82c9.firebaseapp.com",
   databaseURL: "https://test-f82c9-default-rtdb.firebaseio.com",
   projectId: "test-f82c9",
@@ -1348,361 +1148,7 @@ const firebaseConfig = {
   measurementId: "G-3YD17GFX2C"
 };
 firebase.initializeApp(firebaseConfig);
-const db   = firebase.firestore();
-const auth = firebase.auth();
-
-// ════════════════════════════════════════════════════
-//  👤 인증 & 권한 시스템
-// ════════════════════════════════════════════════════
-// 역할 정의
-// admin  : 전체 기능
-// staff  : 조회 + 입출고/지급/반납 (품목삭제·초기화 불가)
-// viewer : 조회만
-
-let currentUser   = null;   // Firebase Auth user
-let currentRole   = null;   // 'admin' | 'staff' | 'viewer'
-let currentName   = '';     // 표시 이름
-
-const ROLE_LABEL  = {admin:'관리자', staff:'직원', viewer:'열람자'};
-const ROLE_COLOR  = {admin:'var(--accent)', staff:'var(--green)', viewer:'var(--purple)'};
-
-// 권한 체크 헬퍼
-function isAdmin()  { return currentRole === 'admin'; }
-function isStaff()  { return currentRole === 'admin' || currentRole === 'staff'; }
-function isViewer() { return true; } // 모든 역할 조회 가능
-
-function requireAdmin(fn){
-  if(!isAdmin()){ toast('관리자만 사용할 수 있는 기능입니다','🔒'); return; }
-  fn();
-}
-function requireStaff(fn){
-  if(!isStaff()){ toast('직원 이상 권한이 필요합니다','🔒'); return; }
-  fn();
-}
-
-// ── 로그인 ──
-async function doLogin(){
-  const email = document.getElementById('login-email').value.trim();
-  const pw    = document.getElementById('login-pw').value;
-  const btn   = document.getElementById('login-btn');
-  const errEl = document.getElementById('login-error');
-  errEl.style.display = 'none';
-  if(!email || !pw){ errEl.textContent='이메일과 비밀번호를 입력하세요.'; errEl.style.display='block'; return; }
-  btn.textContent = '로그인 중...'; btn.disabled = true;
-  try{
-    await auth.signInWithEmailAndPassword(email, pw);
-    // onAuthStateChanged 에서 처리
-  } catch(e){
-    console.error('로그인 오류 코드:', e.code, e.message);
-    let msg = '';
-    switch(e.code){
-      case 'auth/invalid-credential':
-      case 'auth/wrong-password':
-      case 'auth/user-not-found':
-      case 'auth/invalid-login-credentials':
-        msg = '이메일 또는 비밀번호가 올바르지 않습니다.\n입력하신 정보를 다시 확인해 주세요.';
-        break;
-      case 'auth/too-many-requests':
-        msg = '로그인 시도가 너무 많습니다. 잠시 후 다시 시도하세요.';
-        break;
-      case 'auth/user-disabled':
-        msg = '비활성화된 계정입니다. 관리자에게 문의하세요.';
-        break;
-      case 'auth/invalid-email':
-        msg = '올바른 이메일 형식이 아닙니다.';
-        break;
-      case 'auth/network-request-failed':
-        msg = '네트워크 오류입니다. 인터넷 연결을 확인하세요.';
-        break;
-      default:
-        msg = `로그인 실패 (${e.code})\n${e.message}`;
-    }
-    errEl.innerHTML = msg.replace(/\n/g,'<br>');
-    errEl.style.display = 'block';
-    btn.textContent = '로그인'; btn.disabled = false;
-  }
-}
-
-// ── 로그아웃 ──
-async function doLogout(){
-  if(!confirm('로그아웃 하시겠습니까?')) return;
-  closeM('my-account-modal');
-  await auth.signOut();
-}
-
-// ── Auth 상태 변화 감지 ──
-auth.onAuthStateChanged(async user => {
-  if(user){
-    currentUser = user;
-    try{
-      const snap = await db.collection('users').doc(user.uid).get();
-      if(snap.exists){
-        currentRole = snap.data().role || 'viewer';
-        currentName = snap.data().name || user.email.split('@')[0];
-      } else {
-        // Firestore에 문서가 없는 경우
-        // → Firebase 콘솔에서 직접 만든 계정이거나 첫 번째 유저
-        const allUsers = await db.collection('users').get();
-        currentRole = allUsers.empty ? 'admin' : 'viewer';
-        currentName = user.email.split('@')[0];
-        // Firestore에 자동 등록
-        await db.collection('users').doc(user.uid).set({
-          name: currentName,
-          role: currentRole,
-          email: user.email,
-          createdAt: new Date().toISOString()
-        });
-        if(currentRole === 'admin'){
-          toast('첫 번째 계정으로 관리자 권한이 부여되었습니다 🎉','👑');
-        } else {
-          toast('계정이 등록되었습니다. 관리자에게 역할 설정을 요청하세요.','💡');
-        }
-      }
-    } catch(e){
-      currentRole = 'viewer';
-      currentName = user.email.split('@')[0];
-    }
-    showApp();
-  } else {
-    currentUser = null; currentRole = null; currentName = '';
-    showLoginScreen();
-  }
-});
-
-// ── 앱 표시 ──
-async function showApp(){
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('login-btn').textContent = '로그인';
-  document.getElementById('login-btn').disabled = false;
-
-  // 헤더 사용자 정보 업데이트
-  const btn   = document.getElementById('user-info-btn');
-  const av    = document.getElementById('user-avatar');
-  const nm    = document.getElementById('user-display-name');
-  const rb    = document.getElementById('user-role-badge');
-  if(btn){ btn.style.display='flex'; }
-  if(av){  av.textContent = currentName.charAt(0).toUpperCase();
-           av.style.background = ROLE_COLOR[currentRole]||'var(--accent)'; }
-  if(nm){  nm.textContent = currentName; }
-  if(rb){  rb.innerHTML = `<span style="font-size:10px;background:${ROLE_COLOR[currentRole]}22;
-    color:${ROLE_COLOR[currentRole]};padding:1px 6px;border-radius:8px;font-weight:700">
-    ${ROLE_LABEL[currentRole]||'사용자'}</span>`; }
-
-  // 관리자 메뉴 표시
-  const adminSection = document.getElementById('nav-section-admin');
-  const adminNav     = document.getElementById('nav-users');
-  if(isAdmin()){ adminSection?.style.setProperty('display','block'); adminNav?.style.setProperty('display','flex'); }
-  else          { adminSection?.style.setProperty('display','none');  adminNav?.style.setProperty('display','none'); }
-
-  // 권한에 따라 버튼 제어 (초기화 등)
-  applyPermissions();
-
-  // 데이터 로드 & 앱 시작
-  await loadData();
-  startRealtimeSync();
-  renderDashboard();
-  updateAlertBadge();
-  setInterval(updateAlertBadge, 30000);
-  initReportMonthSel();
-  if(window.innerWidth<=768){
-    const mbtn=document.getElementById('mob-menu-btn');
-    if(mbtn) mbtn.style.display='inline-flex';
-  }
-}
-
-// ── 로그인 화면 표시 ──
-function showLoginScreen(){
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-pw').value = '';
-  document.getElementById('login-error').style.display = 'none';
-}
-
-// ── 권한별 UI 제어 ──
-function applyPermissions(){
-  // 초기화 버튼 (관리자만)
-  document.querySelectorAll('[onclick*="resetAllData"]').forEach(el=>{
-    el.style.display = isAdmin() ? '' : 'none';
-  });
-  // 품목 추가/삭제 (관리자만)
-  document.querySelectorAll('[onclick*="openAddItem"],[onclick*="openEditItem"],[onclick*="deleteItem"]').forEach(el=>{
-    if(!isAdmin()) el.classList.add('perm-disabled');
-    else el.classList.remove('perm-disabled');
-  });
-}
-
-// ── 내 계정 모달 ──
-function openMyAccount(){
-  const info = document.getElementById('my-account-info');
-  if(info) info.innerHTML = `
-    <div style="background:var(--surface2);border-radius:10px;padding:14px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-        <div class="user-avatar" style="width:40px;height:40px;font-size:18px;
-          background:${ROLE_COLOR[currentRole]||'var(--accent)'}">
-          ${currentName.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <div style="font-weight:700;font-size:15px">${currentName}</div>
-          <div style="font-size:12px;color:var(--text3)">${currentUser?.email||''}</div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;color:var(--text3)">역할</span>
-        <span style="background:${ROLE_COLOR[currentRole]}22;color:${ROLE_COLOR[currentRole]};
-          font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px">
-          ${ROLE_LABEL[currentRole]||'사용자'}
-        </span>
-      </div>
-    </div>`;
-  openM('my-account-modal');
-}
-
-// ── 비밀번호 변경 ──
-async function changePassword(){
-  const pw1 = document.getElementById('new-pw-input').value;
-  const pw2 = document.getElementById('new-pw-confirm').value;
-  if(!pw1){ toast('새 비밀번호를 입력하세요','⚠️'); return; }
-  if(pw1 !== pw2){ toast('비밀번호가 일치하지 않습니다','⚠️'); return; }
-  if(pw1.length < 6){ toast('비밀번호는 6자 이상이어야 합니다','⚠️'); return; }
-  try{
-    await currentUser.updatePassword(pw1);
-    toast('비밀번호가 변경되었습니다','✅');
-    document.getElementById('new-pw-input').value='';
-    document.getElementById('new-pw-confirm').value='';
-    closeM('my-account-modal');
-  } catch(e){
-    if(e.code==='auth/requires-recent-login')
-      toast('보안을 위해 재로그인 후 변경해 주세요','⚠️');
-    else toast('변경 실패: '+e.message,'❌');
-  }
-}
-
-// ── 사용자 관리 모달 ──
-async function openUserMgmt(){
-  if(!isAdmin()){ toast('관리자만 접근 가능합니다','🔒'); return; }
-  renderUserList();
-  openM('user-mgmt-modal');
-}
-
-async function renderUserList(){
-  const list = document.getElementById('user-list');
-  if(!list) return;
-  list.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">불러오는 중...</div>';
-  try{
-    const snap = await db.collection('users').orderBy('createdAt','asc').get();
-    if(snap.empty){ list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">등록된 사용자 없음</div>'; return; }
-    list.innerHTML = snap.docs.map(doc=>{
-      const u = doc.data();
-      const isSelf = doc.id === currentUser?.uid;
-      return `<div class="user-row">
-        <div class="user-avatar" style="width:32px;height:32px;font-size:14px;
-          background:${ROLE_COLOR[u.role]||'var(--accent)'}">
-          ${(u.name||'?').charAt(0).toUpperCase()}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600">${u.name||'이름없음'} ${isSelf?'<span style="font-size:10px;color:var(--teal)">(나)</span>':''}</div>
-          <div style="font-size:11px;color:var(--text3)">${u.email||''}</div>
-        </div>
-        <select class="fse" style="font-size:11px;padding:3px 6px;height:28px"
-          ${isSelf?'disabled':''} onchange="changeUserRole('${doc.id}',this.value)">
-          <option value="admin" ${u.role==='admin'?'selected':''}>관리자</option>
-          <option value="staff" ${u.role==='staff'?'selected':''}>직원</option>
-          <option value="viewer" ${u.role==='viewer'?'selected':''}>열람자</option>
-        </select>
-        ${!isSelf?`<button class="btn btn-danger btn-sm" onclick="deleteUserAccount('${doc.id}','${u.name||''}')">🗑</button>`:''}
-      </div>`;
-    }).join('');
-  } catch(e){
-    list.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px">오류: ${e.message}</div>`;
-  }
-}
-
-async function changeUserRole(uid, role){
-  try{
-    await db.collection('users').doc(uid).update({role});
-    toast('역할이 변경되었습니다','✅');
-  } catch(e){ toast('변경 실패: '+e.message,'❌'); }
-}
-
-async function deleteUserAccount(uid, name){
-  if(!confirm(`"${name}" 계정을 삭제할까요?\n※ Firebase Auth 계정은 별도로 삭제해주세요.`)) return;
-  try{
-    await db.collection('users').doc(uid).delete();
-    toast(name+' 계정 삭제됨','🗑');
-    renderUserList();
-  } catch(e){ toast('삭제 실패: '+e.message,'❌'); }
-}
-
-async function createUser(){
-  if(!isAdmin()){ toast('관리자만 계정을 생성할 수 있습니다','🔒'); return; }
-  const name  = document.getElementById('new-user-name').value.trim();
-  const email = document.getElementById('new-user-email').value.trim();
-  const pw    = document.getElementById('new-user-pw').value;
-  const role  = document.getElementById('new-user-role').value;
-  if(!name||!email||!pw){ toast('모든 항목을 입력하세요','⚠️'); return; }
-  if(pw.length<6){ toast('비밀번호는 6자 이상이어야 합니다','⚠️'); return; }
-
-  const btn = document.querySelector('#user-mgmt-modal .btn-primary');
-  if(btn){ btn.textContent='생성 중...'; btn.disabled=true; }
-
-  // 현재 관리자 세션 보존을 위해 현재 토큰 저장
-  const adminUser = auth.currentUser;
-  const adminEmail = adminUser?.email;
-
-  // 방법: 보조 Firebase 앱 인스턴스로 계정 생성
-  let secondaryApp = null;
-  try{
-    const appName = 'secondary-'+Date.now();
-    secondaryApp = firebase.initializeApp(firebaseConfig, appName);
-    const secAuth = secondaryApp.auth();
-
-    // 보조 앱에서 계정 생성
-    const cred = await secAuth.createUserWithEmailAndPassword(email, pw);
-    const newUid = cred.user.uid;
-
-    // Firestore에 사용자 정보 저장
-    await db.collection('users').doc(newUid).set({
-      name, email, role,
-      createdAt: new Date().toISOString(),
-      createdBy: adminUser?.uid || ''
-    });
-
-    // 보조 앱 정리
-    await secAuth.signOut();
-    await secondaryApp.delete();
-    secondaryApp = null;
-
-    // 입력 초기화
-    document.getElementById('new-user-name').value = '';
-    document.getElementById('new-user-email').value = '';
-    document.getElementById('new-user-pw').value = '';
-
-    toast(`✅ ${name} 계정 생성 완료 (${ROLE_LABEL[role]})`, '👤');
-    renderUserList();
-
-  } catch(e){
-    // 보조 앱 정리
-    if(secondaryApp){
-      try{ await secondaryApp.delete(); } catch(_){}
-    }
-    const msg =
-      e.code==='auth/email-already-in-use' ? '이미 사용 중인 이메일입니다.' :
-      e.code==='auth/invalid-email'        ? '올바른 이메일 형식이 아닙니다.' :
-      e.code==='auth/weak-password'        ? '비밀번호가 너무 약합니다 (6자 이상).' :
-      e.code==='auth/network-request-failed' ? '네트워크 오류입니다. 연결을 확인하세요.' :
-      '생성 실패: ' + e.message;
-    toast(msg, '❌');
-
-  } finally {
-    if(btn){ btn.textContent='계정 생성'; btn.disabled=false; }
-
-    // 관리자 세션이 끊겼을 경우 복구 안내
-    if(!auth.currentUser){
-      toast('⚠️ 세션이 끊겼습니다. 다시 로그인해주세요.','⚠️');
-      showLoginScreen();
-    }
-  }
-}
+const db = firebase.firestore();
 
 // Firestore 컬렉션 참조
 const COL = 'sauna_v1'; // 단일 문서로 모든 데이터 관리
@@ -1951,7 +1397,6 @@ async function _doSave(){
 }
 
 function resetAllData(){
-  if(!isAdmin()){ toast('관리자만 초기화할 수 있습니다','🔒'); return; }
   if(!confirm('모든 데이터를 초기화할까요?\n등록하신 품목·장비·이력·분석 데이터가 모두 삭제됩니다.')) return;
   items=JSON.parse(JSON.stringify(DEF_ITEMS));
   equips=JSON.parse(JSON.stringify(DEF_EQUIPS));
@@ -4635,7 +4080,21 @@ function exportReportExcel(){
   toast(`${year}년 ${parseInt(month)}월 보고서 엑셀 저장 완료`, '📥');
 }
 // ── 앱 시작 ──
-// ── 앱 시작은 auth.onAuthStateChanged → showApp() 에서 처리 ──
+(async()=>{
+  await loadData();
+  startRealtimeSync();
+  renderDashboard();
+  // 알림 뱃지 초기화 및 주기적 업데이트
+  updateAlertBadge();
+  setInterval(updateAlertBadge, 30000); // 30초마다 갱신
+  // 보고서 월 선택 초기화
+  initReportMonthSel();
+  // 모바일 메뉴 버튼
+  if(window.innerWidth<=768){
+    const btn=document.getElementById('mob-menu-btn');
+    if(btn) btn.style.display='inline-flex';
+  }
+})();
 
 // ════════════════════════════════════════════════════
 //  구명자켓 관리 (사이즈별 수량 관리)

@@ -604,6 +604,10 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
           style="padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:'Pretendard','Noto Sans KR',sans-serif">
           📦 폐기 이력
         </button>
+        <button id="equip-tab-usage" onclick="setEquipTab('usage')"
+          style="padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:'Pretendard','Noto Sans KR',sans-serif">
+          📋 사용현황
+        </button>
         <button id="equip-tab-discard-analysis" onclick="setEquipTab('discard-analysis')"
           style="padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:'Pretendard','Noto Sans KR',sans-serif">
           📊 폐기 분석
@@ -1036,6 +1040,8 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
     </div>
     <div class="mbody">
       <input type="hidden" id="em-id">
+      <!-- 세대 정보 표시 (편집 시에만 노출) -->
+      <div id="em-gen-info" style="display:none"></div>
       <div class="frow">
         <div class="fg"><label class="fl">번호 <span style="color:var(--text3);font-weight:400">(직접 입력)</span></label>
           <input class="fi" id="em-num" placeholder="예: 001, A-01">
@@ -1077,7 +1083,7 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
 
 <!-- ═══ 세대 교체 MODAL ═══ -->
 <div class="moverlay" id="replace-modal">
-  <div class="modal" style="max-width:480px">
+  <div class="modal" style="max-width:500px">
     <div class="mhead">
       <div class="mtitle">🔄 세대 교체 — 새 장비 등록</div>
       <button class="xbtn" onclick="closeM('replace-modal')">✕</button>
@@ -1088,8 +1094,31 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
       <input type="hidden" id="rp-item-name">
       <input type="hidden" id="rp-num">
       <input type="hidden" id="rp-generation">
+
+      <!-- ★ 여분 장비에서 불러오기 -->
+      <div id="rp-spare-section" style="margin-bottom:14px;display:none">
+        <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px">
+          📦 여분 장비에서 불러오기
+          <span style="font-size:10px;font-weight:400;color:var(--text3);margin-left:6px">
+            선택하면 해당 장비 정보가 자동 입력됩니다
+          </span>
+        </div>
+        <div id="rp-spare-list" style="display:flex;flex-direction:column;gap:6px;
+          max-height:180px;overflow-y:auto;padding-right:4px"></div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost btn-sm" onclick="rpClearSpare()">
+            ✕ 선택 해제 (신규 장비로 등록)
+          </button>
+        </div>
+      </div>
+
       <!-- 새 장비 정보 -->
-      <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:10px;">📦 새 장비 정보 입력</div>
+      <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:10px"
+        id="rp-new-label">📦 새 장비 정보 입력</div>
+      <div id="rp-selected-spare-info" style="display:none;background:rgba(45,212,191,.08);
+        border:1px solid rgba(45,212,191,.3);border-radius:8px;padding:10px 12px;
+        margin-bottom:12px;font-size:12px"></div>
+
       <div class="fg"><label class="fl">제조사 / 모델명</label>
         <input class="fi" id="rp-model" placeholder="예: 파나소닉 EH-NA45">
       </div>
@@ -1115,8 +1144,12 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
       </div>
     </div>
     <div class="mfoot" style="flex-direction:column;gap:8px;align-items:stretch">
-      <button class="btn btn-primary" style="width:100%" onclick="saveReplacement()">✅ 새 장비 등록 (세대 교체 완료)</button>
-      <button class="btn btn-ghost" style="width:100%;font-size:12px" onclick="closeM('replace-modal')">나중에 등록하기 (폐기만 저장)</button>
+      <button class="btn btn-primary" style="width:100%" onclick="saveReplacement()">
+        ✅ 새 장비 등록 (세대 교체 완료)
+      </button>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px" onclick="closeM('replace-modal')">
+        나중에 등록하기 (폐기만 저장)
+      </button>
     </div>
   </div>
 </div>
@@ -1865,19 +1898,21 @@ function setEquipTab(mode){
   equipTabMode = mode;
   const btnActive   = document.getElementById('equip-tab-active');
   const btnArchive  = document.getElementById('equip-tab-archive');
+  const btnUsage    = document.getElementById('equip-tab-usage');
   const btnAnalysis = document.getElementById('equip-tab-discard-analysis');
-  if(btnActive){
-    btnActive.style.background   = mode==='active'           ? 'var(--accent)' : 'transparent';
-    btnActive.style.color        = mode==='active'           ? '#fff'          : 'var(--text3)';
-    btnArchive.style.background  = mode==='archive'          ? 'var(--red)'    : 'transparent';
-    btnArchive.style.color       = mode==='archive'          ? '#fff'          : 'var(--text3)';
-  }
-  if(btnAnalysis){
-    btnAnalysis.style.background = mode==='discard-analysis' ? 'var(--purple)' : 'transparent';
-    btnAnalysis.style.color      = mode==='discard-analysis' ? '#fff'          : 'var(--text3)';
-  }
+  const TABS = {
+    'active':           {btn:btnActive,   bg:'var(--accent)'},
+    'archive':          {btn:btnArchive,  bg:'var(--red)'},
+    'usage':            {btn:btnUsage,    bg:'var(--teal)'},
+    'discard-analysis': {btn:btnAnalysis, bg:'var(--purple)'}
+  };
+  Object.entries(TABS).forEach(([key,{btn,bg}])=>{
+    if(!btn) return;
+    btn.style.background = mode===key ? bg : 'transparent';
+    btn.style.color      = mode===key ? '#fff' : 'var(--text3)';
+  });
   const sf = document.getElementById('ef-status');
-  if(sf) sf.style.display = (mode==='archive'||mode==='discard-analysis') ? 'none' : '';
+  if(sf) sf.style.display = (mode==='archive'||mode==='discard-analysis'||mode==='usage') ? 'none' : '';
   renderEquip();
 }
 
@@ -1888,6 +1923,13 @@ function renderEquip(){
   if(!activeCat && cats.length) activeCat = cats[0];
 
   const area = document.getElementById('equip-table-area');
+
+  // 사용현황 탭
+  if(equipTabMode==='usage'){
+    document.getElementById('cat-pills').innerHTML='';
+    renderEquipUsage(area);
+    return;
+  }
 
   // 폐기 분석 탭 — 카테고리 필 숨기고 분석 렌더
   if(equipTabMode==='discard-analysis'){
@@ -1921,6 +1963,12 @@ function filteredEquips(cat){
 
 function renderActiveTable(list, area){
   if(!list.length){ area.innerHTML='<div class="empty-st">등록된 장비가 없습니다.</div>'; return; }
+  // 번호 기준 자동 정렬 (숫자 우선, 그 다음 문자열)
+  const sorted = [...list].sort((a,b)=>{
+    const na = parseInt(a.num)||0, nb = parseInt(b.num)||0;
+    if(na!==nb) return na-nb;
+    return (a.num||'').localeCompare(b.num||'');
+  });
   area.innerHTML=`
     <div class="thead-row" style="border-radius:0">
       <div class="ttitle">🔧 ${activeCat||'전체'} — 현재 장비 (${list.length}대)</div>
@@ -1934,7 +1982,7 @@ function renderActiveTable(list, area){
         <th style="min-width:80px">상태</th><th style="min-width:120px">메모</th>
         <th style="min-width:70px">편집</th><th style="min-width:80px">폐기처리</th>
       </tr></thead>
-      <tbody>${list.map(eq=>renderActiveRow(eq)).join('')}</tbody>
+      <tbody>${sorted.map(eq=>renderActiveRow(eq)).join('')}</tbody>
     </table></div>`;
 }
 
@@ -2011,6 +2059,215 @@ function renderEquipRow(eq){ return renderActiveRow(eq); }
 // ════════════════════════════════════════════════════
 //  폐기 분석 대시보드
 // ════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════
+//  📋 장비 사용현황 (위치별 자동 집계)
+// ════════════════════════════════════════════════════
+function renderEquipUsage(area){
+  const equipItems = items.filter(i=>i.type==='equip');
+  if(!equipItems.length){
+    area.innerHTML='<div class="empty-st">등록된 장비가 없습니다.</div>';
+    return;
+  }
+
+  // 위치 정의
+  const LOCS = [
+    {key:'fb1', label:'B1', group:'여자사우나', color:'#EC4899'},
+    {key:'fb2', label:'B2', group:'여자사우나', color:'#EC4899'},
+    {key:'mb1', label:'B1', group:'남자사우나', color:'#3B82F6'},
+    {key:'mb2', label:'B2', group:'남자사우나', color:'#3B82F6'},
+    {key:'spare', label:'여분', group:'기타', color:'var(--teal)'},
+    {key:'repair', label:'고장', group:'기타', color:'var(--red)'},
+  ];
+
+  // 장비별 위치 집계
+  function getEquipStats(item){
+    const stats = {fb1:0,fb2:0,mb1:0,mb2:0,spare:0,repair:0,discard:0};
+    equips.filter(e=>e.itemName===item.name && e.status!=='폐기').forEach(e=>{
+      const locMap = {'여사 B1':'fb1','여사 B2':'fb2','남사 B1':'mb1','남사 B2':'mb2',
+                      '지원팀':'spare','직원용':'spare','여분':'spare'};
+      const statMap = {'수리중':'repair','수리예정':'repair'};
+      if(statMap[e.status]) stats[statMap[e.status]]++;
+      else {
+        const k = locMap[e.location];
+        if(k) stats[k]++;
+        else stats.spare++;
+      }
+    });
+    stats.total = stats.fb1+stats.fb2+stats.mb1+stats.mb2+stats.spare+stats.repair;
+    stats.female = stats.fb1+stats.fb2;
+    stats.male   = stats.mb1+stats.mb2;
+    return stats;
+  }
+
+  // 색상 헬퍼
+  function cell(val, color='var(--text)', bold=false){
+    return `<td style="text-align:center;font-weight:${bold?'700':'500'};
+      color:${val>0?color:'var(--text3)'};font-size:${bold?'15':'13'}px">${val||0}</td>`;
+  }
+
+  // 전체 합계 계산
+  const totalStats = {fb1:0,fb2:0,mb1:0,mb2:0,spare:0,repair:0,total:0,female:0,male:0};
+  equipItems.forEach(item=>{
+    const s=getEquipStats(item);
+    Object.keys(totalStats).forEach(k=>{ totalStats[k]+=(s[k]||0); });
+  });
+
+  area.innerHTML = `
+    <div style="padding:16px">
+      <!-- 전체 요약 카드 -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px">
+        <div class="stat-card" style="--cc:var(--accent);padding:14px;text-align:center">
+          <div class="stat-lbl">전체 장비</div>
+          <div class="stat-val" style="color:var(--accent)">${totalStats.total}</div>
+          <div class="stat-sub">총 보유</div>
+        </div>
+        <div class="stat-card" style="--cc:#EC4899;padding:14px;text-align:center">
+          <div class="stat-lbl">여자사우나</div>
+          <div class="stat-val" style="color:#EC4899">${totalStats.female}</div>
+          <div class="stat-sub">B1 ${totalStats.fb1} · B2 ${totalStats.fb2}</div>
+        </div>
+        <div class="stat-card" style="--cc:#3B82F6;padding:14px;text-align:center">
+          <div class="stat-lbl">남자사우나</div>
+          <div class="stat-val" style="color:#3B82F6">${totalStats.male}</div>
+          <div class="stat-sub">B1 ${totalStats.mb1} · B2 ${totalStats.mb2}</div>
+        </div>
+        <div class="stat-card" style="--cc:var(--teal);padding:14px;text-align:center">
+          <div class="stat-lbl">여분</div>
+          <div class="stat-val" style="color:var(--teal)">${totalStats.spare}</div>
+          <div class="stat-sub">예비 보유</div>
+        </div>
+        <div class="stat-card" style="--cc:var(--red);padding:14px;text-align:center">
+          <div class="stat-lbl">고장·수리</div>
+          <div class="stat-val" style="color:${totalStats.repair>0?'var(--red)':'var(--green)'}">${totalStats.repair}</div>
+          <div class="stat-sub">수리 중</div>
+        </div>
+      </div>
+
+      <!-- 장비별 사용현황 테이블 -->
+      <div class="sec" style="margin-bottom:12px">📋 장비별 위치 사용현황</div>
+      <div style="overflow-x:auto">
+        <table class="equip-detail-table">
+          <thead>
+            <!-- 1행: 구분 -->
+            <tr>
+              <th rowspan="2" style="min-width:120px">장비명</th>
+              <th colspan="3" style="text-align:center;color:#EC4899;
+                border-bottom:2px solid #EC4899;background:rgba(236,72,153,.08)">
+                여자사우나
+              </th>
+              <th colspan="3" style="text-align:center;color:#3B82F6;
+                border-bottom:2px solid #3B82F6;background:rgba(59,130,246,.08)">
+                남자사우나
+              </th>
+              <th rowspan="2" style="text-align:center;color:var(--teal)">여분</th>
+              <th rowspan="2" style="text-align:center;color:var(--red)">고장</th>
+              <th rowspan="2" style="text-align:center;font-weight:700">합계</th>
+            </tr>
+            <!-- 2행: 세부 -->
+            <tr>
+              <th style="text-align:center;color:#EC4899;font-size:10px;
+                background:rgba(236,72,153,.05)">남사</th>
+              <th style="text-align:center;color:#EC4899;font-size:10px;
+                background:rgba(236,72,153,.05)">B1</th>
+              <th style="text-align:center;color:#EC4899;font-size:10px;
+                background:rgba(236,72,153,.05)">B2</th>
+              <th style="text-align:center;color:#3B82F6;font-size:10px;
+                background:rgba(59,130,246,.05)">남사</th>
+              <th style="text-align:center;color:#3B82F6;font-size:10px;
+                background:rgba(59,130,246,.05)">B1</th>
+              <th style="text-align:center;color:#3B82F6;font-size:10px;
+                background:rgba(59,130,246,.05)">B2</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${equipItems.map(item=>{
+              const s = getEquipStats(item);
+              const danger = s.repair>0||s.total<item.minStock;
+              return `<tr style="${danger?'background:rgba(239,68,68,.03)':''}">
+                <td>
+                  <div style="font-weight:700">${item.name}</div>
+                  ${s.repair>0?`<div style="font-size:10px;color:var(--red)">⚠️ 고장 ${s.repair}대</div>`:''}
+                </td>
+                ${cell(s.female,'#EC4899',true)}
+                ${cell(s.fb1,'#EC4899')}
+                ${cell(s.fb2,'#EC4899')}
+                ${cell(s.male,'#3B82F6',true)}
+                ${cell(s.mb1,'#3B82F6')}
+                ${cell(s.mb2,'#3B82F6')}
+                ${cell(s.spare,'var(--teal)')}
+                ${cell(s.repair,'var(--red)')}
+                <td style="text-align:center;font-weight:900;font-size:15px;
+                  color:${s.total<item.minStock?'var(--red)':'var(--accent)'}">
+                  ${s.total}
+                  ${s.total<item.minStock?`<div style="font-size:9px;color:var(--red)">기준${item.minStock}</div>`:''}
+                </td>
+              </tr>`;
+            }).join('')}
+            <!-- 합계 행 -->
+            <tr style="border-top:2px solid var(--border2);background:var(--surface2)">
+              <td style="font-weight:800">합 계</td>
+              ${cell(totalStats.female,'#EC4899',true)}
+              ${cell(totalStats.fb1,'#EC4899')}
+              ${cell(totalStats.fb2,'#EC4899')}
+              ${cell(totalStats.male,'#3B82F6',true)}
+              ${cell(totalStats.mb1,'#3B82F6')}
+              ${cell(totalStats.mb2,'#3B82F6')}
+              ${cell(totalStats.spare,'var(--teal)',true)}
+              ${cell(totalStats.repair,'var(--red)',true)}
+              <td style="text-align:center;font-weight:900;font-size:16px;
+                color:var(--accent)">${totalStats.total}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 장비별 카드 뷰 -->
+      <div class="sec" style="margin:20px 0 12px">🔍 장비별 상세 현황</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+        ${equipItems.map(item=>{
+          const s = getEquipStats(item);
+          const pct = item.minStock>0?Math.min(100,Math.round(s.total/item.minStock*100)):100;
+          const color = s.total<item.minStock?'var(--red)':s.total<item.minStock*1.1?'var(--yellow)':'var(--green)';
+          return `<div style="background:var(--surface);border:1px solid var(--border);
+            border-radius:12px;padding:14px;${s.repair>0?'border-color:rgba(239,68,68,.4)':''}">
+            <!-- 카드 헤더 -->
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div style="font-weight:700;font-size:14px">${item.name}</div>
+              <div style="font-size:18px;font-weight:900;color:${color}">${s.total}
+                <span style="font-size:11px;color:var(--text3)">/ ${item.minStock}</span>
+              </div>
+            </div>
+            <!-- 진행바 -->
+            <div style="background:var(--border);border-radius:3px;height:4px;margin-bottom:10px">
+              <div style="background:${color};width:${pct}%;height:4px;border-radius:3px"></div>
+            </div>
+            <!-- 위치별 -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div style="background:rgba(236,72,153,.08);border-radius:8px;padding:8px;text-align:center">
+                <div style="font-size:10px;color:#EC4899;font-weight:700;margin-bottom:4px">♀ 여자사우나</div>
+                <div style="font-size:18px;font-weight:900;color:#EC4899">${s.female}</div>
+                <div style="font-size:10px;color:var(--text3)">B1 ${s.fb1} · B2 ${s.fb2}</div>
+              </div>
+              <div style="background:rgba(59,130,246,.08);border-radius:8px;padding:8px;text-align:center">
+                <div style="font-size:10px;color:#3B82F6;font-weight:700;margin-bottom:4px">♂ 남자사우나</div>
+                <div style="font-size:18px;font-weight:900;color:#3B82F6">${s.male}</div>
+                <div style="font-size:10px;color:var(--text3)">B1 ${s.mb1} · B2 ${s.mb2}</div>
+              </div>
+              <div style="background:rgba(45,212,191,.08);border-radius:8px;padding:8px;text-align:center">
+                <div style="font-size:10px;color:var(--teal);font-weight:700;margin-bottom:4px">여분</div>
+                <div style="font-size:18px;font-weight:900;color:var(--teal)">${s.spare}</div>
+              </div>
+              <div style="background:rgba(239,68,68,.08);border-radius:8px;padding:8px;text-align:center">
+                <div style="font-size:10px;color:var(--red);font-weight:700;margin-bottom:4px">고장·수리</div>
+                <div style="font-size:18px;font-weight:900;color:${s.repair>0?'var(--red)':'var(--text3)'}">${s.repair}</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
 function renderDiscardAnalysis(area){
   const discarded = equips.filter(e=>e.status==='폐기');
 
@@ -2305,9 +2562,10 @@ function saveDiscardAndReplace(){
   document.querySelector('#equip-modal .btn-primary').onclick=saveEquip;
   syncEquipToItems(); saveData();
   closeM('equip-modal');
-  // 세대교체 모달
+  // 세대교체 모달 열기
   const nextGen=(eq.generation||1)+1;
-  document.getElementById('rp-item-name').value=eq.itemName;
+  const itemName = eq.itemName;
+  document.getElementById('rp-item-name').value=itemName;
   document.getElementById('rp-num').value=eq.num||'';
   document.getElementById('rp-generation').value=nextGen;
   document.getElementById('rp-model').value=eq.model||'';
@@ -2316,20 +2574,147 @@ function saveDiscardAndReplace(){
   document.getElementById('rp-loc').value=eq.location||'여사 B1';
   document.getElementById('rp-status').value='사용중';
   document.getElementById('rp-note').value='';
+  document.getElementById('rp-selected-spare-info').style.display='none';
+  document.getElementById('rp-new-label').textContent='📦 새 장비 정보 입력';
+
   document.getElementById('replace-old-summary').innerHTML=`
-    <div style="font-weight:700;color:var(--red);margin-bottom:6px">✅ 폐기 완료: ${eq.itemName} #${eq.num||'?'} (${eq.generation||1}세대)</div>
-    <div style="font-size:12px;color:var(--text3)">구매: ${eq.buyMonth||'-'} &nbsp;·&nbsp; 위치: ${eq.location} &nbsp;·&nbsp; 사유: ${eq.discardReason||'-'}</div>
-    <div style="margin-top:8px;font-size:13px;color:var(--teal);font-weight:600">👇 같은 번호(#${eq.num||'?'})로 <strong>${nextGen}세대</strong> 새 장비를 등록하세요</div>`;
+    <div style="font-weight:700;color:var(--red);margin-bottom:6px">
+      ✅ 폐기 완료: ${itemName} #${eq.num||'?'} (${eq.generation||1}세대)
+    </div>
+    <div style="font-size:12px;color:var(--text3)">
+      구매: ${eq.buyMonth||'-'} &nbsp;·&nbsp; 위치: ${eq.location} &nbsp;·&nbsp; 사유: ${eq.discardReason||'-'}
+    </div>
+    <div style="margin-top:8px;font-size:13px;color:var(--teal);font-weight:600">
+      👇 같은 번호(#${eq.num||'?'})로 <strong>${nextGen}세대</strong> 새 장비를 등록하세요
+    </div>`;
+
+  // ★ 같은 품목의 여분 장비 목록 표시
+  const spareList = equips.filter(e=>
+    e.itemName===itemName && e.status!=='폐기' &&
+    (e.location==='여분' || e.status==='여분')
+  );
+  const spareSection = document.getElementById('rp-spare-section');
+  const spareListEl  = document.getElementById('rp-spare-list');
+  if(spareList.length){
+    spareSection.style.display='block';
+    spareListEl.innerHTML = spareList.map(sp=>`
+      <div onclick="rpSelectSpare('${sp.id}')"
+        id="rp-spare-item-${sp.id}"
+        style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+          background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+          cursor:pointer;transition:all .15s"
+        onmouseover="this.style.borderColor='var(--teal)'"
+        onmouseout="this.style.borderColor=rpSelectedSpareId==='${sp.id}'?'var(--teal)':'var(--border)'">
+        <div style="font-size:18px;font-weight:900;color:var(--teal);
+          font-family:'IBM Plex Mono',monospace;min-width:50px">#${sp.num||'?'}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${sp.model||'모델 미입력'}</div>
+          <div style="font-size:11px;color:var(--text3)">
+            구매 ${sp.buyMonth||'-'} · ${sp.location} · ${sp.status}
+          </div>
+        </div>
+        <div style="font-size:11px;background:var(--teal);color:#000;
+          padding:2px 8px;border-radius:6px;font-weight:700">선택</div>
+      </div>`).join('');
+  } else {
+    spareSection.style.display='none';
+  }
+
   openM('replace-modal');
-  toast(`${eq.itemName} #${eq.num||'?'} 폐기 완료`,'🗑');
+  toast(`${itemName} #${eq.num||'?'} 폐기 완료`,'🗑');
+}
+
+// ── 여분 장비 선택 (세대교체 모달)
+let rpSelectedSpareId = null;
+
+function rpSelectSpare(spareId){
+  rpSelectedSpareId = spareId;
+  const sp = equips.find(e=>e.id===spareId);
+  if(!sp) return;
+
+  // 선택된 장비 강조
+  document.querySelectorAll('[id^="rp-spare-item-"]').forEach(el=>{
+    el.style.borderColor = el.id===`rp-spare-item-${spareId}` ? 'var(--teal)' : 'var(--border)';
+    el.style.background  = el.id===`rp-spare-item-${spareId}` ? 'rgba(45,212,191,.1)' : 'var(--surface2)';
+  });
+
+  // 폐기 장비의 번호로 이동 등록 안내
+  const targetNum = document.getElementById('rp-num').value;
+  const targetGen = document.getElementById('rp-generation').value;
+
+  // 선택된 여분 장비 정보를 입력칸에 자동 채우기
+  document.getElementById('rp-model').value   = sp.model||'';
+  document.getElementById('rp-buy').value     = sp.buyMonth||'';
+  document.getElementById('rp-install').value = sp.installDate||'';
+  document.getElementById('rp-status').value  = '사용중';
+
+  // 위치는 폐기된 장비 위치로 자동 설정
+  const discardedLoc = document.getElementById('rp-loc');
+  // (이미 폐기 장비 위치로 설정되어 있으므로 유지)
+
+  // 안내 메시지 표시
+  const infoEl = document.getElementById('rp-selected-spare-info');
+  infoEl.style.display='block';
+  infoEl.innerHTML=`
+    <div style="font-weight:700;color:var(--teal);margin-bottom:6px">
+      ✅ 선택된 여분 장비: #${sp.num||'?'} → 번호 <strong>#${targetNum}</strong> 으로 이동 등록
+    </div>
+    <div style="color:var(--text3);line-height:1.7">
+      · 기존 번호 <b style="color:var(--text)">#${sp.num||'?'}</b> 여분 장비가
+        <b style="color:var(--teal)">#${targetNum} ${targetGen}세대</b> 로 재등록됩니다<br>
+      · 선택된 여분 장비(#${sp.num||'?'})는 <b style="color:var(--red)">목록에서 제거</b>됩니다
+    </div>`;
+  document.getElementById('rp-new-label').textContent=`📦 이동 등록 정보 확인 (#${sp.num||'?'} → #${targetNum})`;
+}
+
+function rpClearSpare(){
+  rpSelectedSpareId = null;
+  document.querySelectorAll('[id^="rp-spare-item-"]').forEach(el=>{
+    el.style.borderColor='var(--border)';
+    el.style.background='var(--surface2)';
+  });
+  document.getElementById('rp-selected-spare-info').style.display='none';
+  document.getElementById('rp-new-label').textContent='📦 새 장비 정보 입력';
+  // 입력칸 초기화
+  document.getElementById('rp-model').value='';
+  document.getElementById('rp-buy').value=nowMonth();
+  document.getElementById('rp-install').value='';
+  document.getElementById('rp-status').value='사용중';
+  toast('선택 해제 — 신규 장비로 등록합니다','💡');
 }
 
 function saveReplacement(){
-  const itemName=document.getElementById('rp-item-name').value;
-  const num=document.getElementById('rp-num').value;
-  const gen=parseInt(document.getElementById('rp-generation').value)||2;
-  const buyMonth=document.getElementById('rp-buy').value;
+  const itemName = document.getElementById('rp-item-name').value;
+  const num      = document.getElementById('rp-num').value;
+  const gen      = parseInt(document.getElementById('rp-generation').value)||2;
+  const buyMonth = document.getElementById('rp-buy').value;
   if(!buyMonth){ toast('구매월을 입력하세요','⚠️'); return; }
+
+  // 여분 장비 선택된 경우 → 기존 여분 장비 번호 변경 후 위치 이동
+  if(rpSelectedSpareId){
+    const spIdx = equips.findIndex(e=>e.id===rpSelectedSpareId);
+    if(spIdx>-1){
+      const oldNum = equips[spIdx].num;
+      equips[spIdx].num        = num;           // 번호 변경 (55→01)
+      equips[spIdx].generation = gen;           // 세대 변경
+      equips[spIdx].location   = document.getElementById('rp-loc').value;
+      equips[spIdx].status     = document.getElementById('rp-status').value;
+      equips[spIdx].model      = document.getElementById('rp-model').value;
+      equips[spIdx].buyMonth   = buyMonth;
+      equips[spIdx].installDate= document.getElementById('rp-install').value;
+      equips[spIdx].note       = document.getElementById('rp-note').value;
+      equips[spIdx].discardMonth  = '';
+      equips[spIdx].discardReason = '';
+      rpSelectedSpareId = null;
+      syncEquipToItems(); saveData();
+      closeM('replace-modal');
+      renderEquip(); renderDashboard();
+      toast(`#${oldNum}(여분) → #${num} ${gen}세대로 이동 등록 완료`,'✅');
+      return;
+    }
+  }
+
+  // 신규 장비 등록
   equips.push({
     id:'e'+Date.now(), itemName, num, generation:gen,
     model:document.getElementById('rp-model').value,
@@ -2344,7 +2729,7 @@ function saveReplacement(){
   closeM('replace-modal');
   renderEquip(); renderDashboard();
   if(document.getElementById('page-items').classList.contains('active')) renderItems();
-  toast(`${itemName} #${num} ${gen}세대 등록 완료`,'✅');
+  toast(`${itemName} #${num} ${gen}세대 신규 등록 완료`,'✅');
 }
 
 
@@ -2392,6 +2777,9 @@ function postEquipEdit(eq){syncEquipToItems();saveData();renderEquip();renderDas
 function openAddEquip(){
   document.getElementById('equip-modal-title').textContent='장비 등록';
   document.getElementById('em-id').value='';
+  // 세대 정보 숨기기
+  const genInfo=document.getElementById('em-gen-info');
+  if(genInfo){ genInfo.style.display='none'; genInfo.innerHTML=''; }
   document.getElementById('em-item').innerHTML=items.filter(i=>i.type==='equip').map(i=>`<option>${i.name}</option>`).join('');
   ['em-num','em-model','em-install','em-dmonth','em-dreason','em-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('em-buy').value=nowMonth();
@@ -2402,7 +2790,8 @@ function openAddEquip(){
 }
 function openEditEquip(id){
   const eq=equips.find(e=>e.id===id);if(!eq)return;
-  document.getElementById('equip-modal-title').textContent='장비 편집';
+  document.getElementById('equip-modal-title').textContent=
+    `장비 편집 — #${eq.num||'?'} (${eq.generation||1}세대)`;
   document.getElementById('em-id').value=id;
   document.getElementById('em-item').innerHTML=items.filter(i=>i.type==='equip').map(i=>`<option${i.name===eq.itemName?' selected':''}>${i.name}</option>`).join('');
   document.getElementById('em-num').value=eq.num||'';
@@ -2415,6 +2804,24 @@ function openEditEquip(id){
   document.getElementById('em-dreason').value=eq.discardReason||'';
   document.getElementById('em-note').value=eq.note||'';
   document.getElementById('em-discard-grp').style.display=eq.status==='폐기'?'grid':'none';
+
+  // 세대 정보 안내 표시
+  const genColor = (eq.generation||1)>1 ? 'var(--purple)' : 'var(--text3)';
+  const genInfo  = document.getElementById('em-gen-info');
+  if(genInfo){
+    genInfo.innerHTML=`
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;
+        margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:10px">
+        <span style="color:${genColor};font-weight:700;font-size:14px">${eq.generation||1}세대</span>
+        <span style="color:var(--text3)">번호 #${eq.num||'미지정'}</span>
+        <span style="color:var(--text3)">·</span>
+        <span style="color:var(--text2)">위치·모델·메모 등을 수정할 수 있습니다</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--yellow)">
+          ⚠️ 세대 변경은 폐기 처리 후 재등록
+        </span>
+      </div>`;
+    genInfo.style.display='block';
+  }
   openM('equip-modal');
 }
 function toggleDiscardFields(){

@@ -452,9 +452,9 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
         background:var(--red);color:#fff;font-size:9px;font-weight:700;
         padding:1px 5px;border-radius:8px;min-width:16px;text-align:center"></span>
     </button>
-    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('xlsx-file-input').click()">📂 가져오기</button>
+    <button class="btn btn-ghost btn-sm" onclick="openImportModal()">📂 가져오기</button>
     <input type="file" id="xlsx-file-input" accept=".xlsx,.xls" style="display:none" onchange="importXlsx(this)">
-    <button class="btn btn-ghost btn-sm" onclick="exportCurrentData()">💾 내보내기</button>
+    <button class="btn btn-ghost btn-sm" onclick="openExportModal()">💾 내보내기</button>
     <button class="btn btn-ghost btn-sm" onclick="resetAllData()" style="color:var(--red);border-color:rgba(239,68,68,.3)">🔄</button>
   </div>
 </header>
@@ -822,6 +822,8 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <div style="display:flex;background:var(--surface2);border-radius:8px;padding:3px;gap:2px">
+        <button id="st-tab-dashboard" onclick="setStTab('dashboard')"
+          style="padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:'Noto Sans KR',sans-serif">👥 대시보드</button>
         <button id="st-tab-stock" onclick="setStTab('stock')"
           style="padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:var(--orange);color:#fff;font-family:'Noto Sans KR',sans-serif">📦 재고 현황</button>
         <button id="st-tab-issue" onclick="setStTab('issue')"
@@ -1154,7 +1156,152 @@ tbody td{padding:10px 14px;font-size:13px;vertical-align:middle;}
   </div>
 </div>
 
-<div class="toast-wrap" id="toasts"></div>
+<!-- ═══ 선택적 내보내기 MODAL ═══ -->
+<div class="moverlay" id="export-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="mhead">
+      <div class="mtitle">💾 선택적 내보내기</div>
+      <button class="xbtn" onclick="closeM('export-modal')">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="info-box">💡 내보낼 데이터를 선택하세요. 엑셀 파일로 저장되며 나중에 다시 가져올 수 있습니다.</div>
+
+      <!-- 내보내기 범위 선택 -->
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">📋 내보낼 데이터 선택</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px" id="export-category-list">
+        <!-- JS 렌더 -->
+      </div>
+
+      <!-- 장비 품목별 선택 -->
+      <div id="export-equip-section" style="display:none">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin:12px 0 8px">
+          🔧 장비 품목 선택 <span style="font-size:10px;font-weight:400;color:var(--text3)">(전체 선택 또는 개별 선택)</span>
+        </div>
+        <div id="export-equip-items" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
+      <!-- 소모품 품목별 선택 -->
+      <div id="export-cons-section" style="display:none">
+        <div style="font-size:12px;font-weight:700;color:var(--orange);margin:12px 0 8px">
+          🧴 소모품 품목 선택
+        </div>
+        <div id="export-cons-items" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      </div>
+
+      <!-- 기간 필터 -->
+      <div id="export-period-section" style="display:none;margin-top:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📅 기간 필터 (선택사항)</div>
+        <div class="frow">
+          <div class="fg">
+            <label class="fl">시작 월</label>
+            <input class="fi" type="month" id="export-from">
+          </div>
+          <div class="fg">
+            <label class="fl">종료 월</label>
+            <input class="fi" type="month" id="export-to">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">비워두면 전체 기간을 내보냅니다</div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-ghost" onclick="closeM('export-modal')">취소</button>
+      <button class="btn btn-primary" onclick="doSelectiveExport()">💾 엑셀 내보내기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 선택적 가져오기 MODAL ═══ -->
+<div class="moverlay" id="import-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="mhead">
+      <div class="mtitle">📂 선택적 가져오기</div>
+      <button class="xbtn" onclick="closeM('import-modal')">✕</button>
+    </div>
+    <div class="mbody">
+
+      <!-- 단계 1: 파일 선택 -->
+      <div id="import-step1">
+        <div class="info-box" style="margin-bottom:14px">
+          💡 <b>기존 엑셀 → 앱 전환</b>을 지원합니다.<br>
+          이 앱에서 내보낸 파일 또는 아래 형식에 맞는 엑셀 파일을 가져올 수 있습니다.
+        </div>
+
+        <!-- 파일 드롭 영역 -->
+        <div id="import-drop-zone"
+          onclick="document.getElementById('import-file-input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+          ondragleave="this.style.borderColor='var(--border)'"
+          ondrop="handleImportDrop(event)"
+          style="border:2px dashed var(--border);border-radius:12px;
+            padding:32px;text-align:center;cursor:pointer;transition:all .2s;
+            margin-bottom:14px"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:32px;margin-bottom:8px">📂</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:4px">클릭하거나 파일을 여기에 드래그</div>
+          <div style="font-size:12px;color:var(--text3)">.xlsx, .xls 파일 지원</div>
+          <input type="file" id="import-file-input" accept=".xlsx,.xls"
+            style="display:none" onchange="handleImportFile(this)">
+        </div>
+
+        <!-- 가져오기 방식 -->
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">⚙️ 가져오기 방식</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;
+            background:var(--surface2);border-radius:8px;cursor:pointer">
+            <input type="radio" name="import-mode" value="merge" checked style="margin-top:2px">
+            <div>
+              <div style="font-size:13px;font-weight:600">➕ 추가 (기존 데이터 유지)</div>
+              <div style="font-size:11px;color:var(--text3)">기존 데이터를 유지하고 새 데이터를 추가합니다. 중복은 자동 건너뜁니다.</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;
+            background:var(--surface2);border-radius:8px;cursor:pointer">
+            <input type="radio" name="import-mode" value="replace" style="margin-top:2px">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--orange)">🔄 덮어쓰기 (해당 데이터만 교체)</div>
+              <div style="font-size:11px;color:var(--text3)">선택한 데이터만 교체합니다. 나머지 데이터는 유지됩니다.</div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 지원 형식 안내 -->
+        <details style="background:var(--surface2);border-radius:8px;padding:10px">
+          <summary style="font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)">
+            📋 지원되는 엑셀 형식 보기
+          </summary>
+          <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:2">
+            <b style="color:var(--accent)">🔧 장비이력 시트</b> (헤더: 품목명, 번호, 제조사/모델, 구매월, 설치일, 설치위치, 상태, 폐기월, 폐기사유, 메모)<br>
+            <b style="color:var(--orange)">🧴 소모품 시트</b> (헤더: 날짜, 품목명, 유형(구매/소모), 수량, 단위, 메모)<br>
+            <b style="color:var(--teal)">👥 입장객 시트</b> (헤더: 연도, 월, 입장객 수)
+          </div>
+        </details>
+      </div>
+
+      <!-- 단계 2: 시트 선택 (파일 로드 후 표시) -->
+      <div id="import-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="font-size:20px">📊</div>
+          <div>
+            <div id="import-filename" style="font-weight:700;font-size:14px"></div>
+            <div id="import-sheetcount" style="font-size:11px;color:var(--text3)"></div>
+          </div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">가져올 시트 선택</div>
+        <div id="import-sheet-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div style="margin-top:12px;padding:10px;background:rgba(79,142,247,.08);
+          border-radius:8px;font-size:11px;color:var(--accent)" id="import-preview-info"></div>
+      </div>
+
+    </div>
+    <div class="mfoot">
+      <button class="btn btn-ghost" onclick="closeImportModal()">취소</button>
+      <button id="import-confirm-btn" class="btn btn-primary"
+        style="display:none" onclick="doSelectiveImport()">📂 가져오기 실행</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ════════════════════════════════════════════════════
@@ -1263,7 +1410,7 @@ function startRealtimeSync(){
   });
   DOC_UNIFSTOCK.onSnapshot(snap=>{
     if(!snap.exists||!snap.data().data) return;
-    unifStock = snap.data().data;
+    unifStock = migrateUnifStock(snap.data().data) || unifStock;
     if(document.getElementById('page-staff').classList.contains('active')) renderSt();
   });
   // 근무자물품 실시간 동기화
@@ -1341,11 +1488,59 @@ let staffLogs=[], staffStock=[], stDiscardLogs=[];
 
 
 // ── 유니폼 재고 별도 관리 ──
-// unifStock 구조: { '여자': {상의:{m:10,l:5,xl:3,xxl:0}, 하의:{m:8,...}}, '남자': {...} }
+// ════════════════════════════════════════════════════
+//  unifStock 구조 v2:
+//  {
+//    '여자': { '상의': { m:{new:0,used:0}, l:{new:0,used:0}, ... }, '하의': {...} },
+//    '남자': { ... },
+//    '크록스': { '신발': { '220':{new:0,used:0}, '230':{new:0,used:0}, ... } }
+//  }
+//  new  = 새것 수량
+//  used = 사용감 있는 수량
+//  지급/폐기 시 used 먼저 차감
+// ════════════════════════════════════════════════════
 let unifStock = {
-  '여자': { '상의': {m:0,l:0,xl:0,xxl:0}, '하의': {m:0,l:0,xl:0,xxl:0} },
-  '남자': { '상의': {l:0,xl:0,xxl:0,xxxl:0}, '하의': {l:0,xl:0,xxl:0,xxxl:0} }
+  '여자': {
+    '상의': {m:{new:0,used:0}, l:{new:0,used:0}, xl:{new:0,used:0}, xxl:{new:0,used:0}},
+    '하의': {m:{new:0,used:0}, l:{new:0,used:0}, xl:{new:0,used:0}, xxl:{new:0,used:0}}
+  },
+  '남자': {
+    '상의': {l:{new:0,used:0}, xl:{new:0,used:0}, xxl:{new:0,used:0}, xxxl:{new:0,used:0}},
+    '하의': {l:{new:0,used:0}, xl:{new:0,used:0}, xxl:{new:0,used:0}, xxxl:{new:0,used:0}}
+  },
+  '크록스': {
+    '신발': {
+      '220':{new:0,used:0},'230':{new:0,used:0},'240':{new:0,used:0},
+      '250':{new:0,used:0},'260':{new:0,used:0},'270':{new:0,used:0},
+      '280':{new:0,used:0},'290':{new:0,used:0},'300':{new:0,used:0}
+    }
+  }
 };
+
+// unifStock 마이그레이션: 구버전(숫자) → 신버전({new,used}) 변환
+function migrateUnifStock(data){
+  if(!data) return;
+  Object.keys(data).forEach(gender=>{
+    Object.keys(data[gender]||{}).forEach(type=>{
+      Object.keys(data[gender][type]||{}).forEach(sz=>{
+        const v = data[gender][type][sz];
+        if(typeof v === 'number'){
+          data[gender][type][sz] = {new: v, used: 0};
+        } else if(v && typeof v === 'object' && !('new' in v)){
+          data[gender][type][sz] = {new: 0, used: 0};
+        }
+      });
+    });
+  });
+  // 크록스 없으면 추가
+  if(!data['크록스']){
+    data['크록스'] = { '신발': {} };
+    for(let s=220; s<=300; s+=10){
+      data['크록스']['신발'][String(s)] = {new:0, used:0};
+    }
+  }
+  return data;
+}
 
 // ════════════════════════════════════════════════════
 //  STORAGE
@@ -1380,8 +1575,9 @@ async function loadData(){
       ljBrands  = ljBrandsSnap.data().data;
     staffLogs   = stSnap.exists    ? (stSnap.data().data||[])          : [];
     staffStock  = stStockSnap.exists?(stStockSnap.data().data||[])     : [];
-    if(unifSnap.exists && unifSnap.data().data)
-      unifStock = unifSnap.data().data;
+    if(unifSnap.exists && unifSnap.data().data){
+      unifStock = migrateUnifStock(unifSnap.data().data) || unifStock;
+    }
     stDiscardLogs = stDiscardSnap.exists?(stDiscardSnap.data().data||[]):[];
 
 
@@ -3617,285 +3813,587 @@ function saveVisitors(){
 }
 
 // ════════════════════════════════════════════════════
-//  EXCEL 가져오기 / 내보내기
+//  💾 선택적 내보내기
 // ════════════════════════════════════════════════════
-function importXlsx(input){
-  const file=input.files[0]; if(!file) return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      // cellDates 제거 → 날짜를 Date 객체 아닌 문자열로 받음 (UTC 변환 문제 원천 차단)
-      const wb=XLSX.read(e.target.result,{type:'array', cellDates:false, cellText:false});
-      let imported={cons:0, visitors:0, equips:0, autoAdded:[], errors:[]};
+function openExportModal(){
+  const equipItems = items.filter(i=>i.type==='equip');
+  const consItems  = items.filter(i=>i.type==='consumable');
 
-      // ── 날짜 정규화: 엑셀 시리얼 숫자 → YYYY-MM-DD ──
-      // raw:false + cellDates:false 시 날짜 셀은 엑셀 시리얼 숫자로 옴
-      const toDateStr=v=>{
-        if(!v&&v!==0) return '';
-        // 엑셀 시리얼 숫자 (예: 45658)
-        if(typeof v==='number'||(!isNaN(Number(v))&&String(v).trim()!==''&&!/[-\/T]/.test(String(v)))){
-          const n=typeof v==='number'?v:Number(v);
-          if(n>40000&&n<60000){
-            // 엑셀 시리얼 → UTC 날짜 (엑셀은 UTC 기준 저장)
-            const d=new Date(Math.round((n-25569)*86400*1000));
-            return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-          }
-        }
-        const s=String(v).trim();
-        if(!s) return '';
-        // YYYY-MM-DD 이미 정상
-        if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        // ISO 문자열
-        if(/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.substring(0,10);
-        // M/D/YYYY
-        const mdy=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if(mdy) return `${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
-        // YYYY/MM/DD
-        const ymd=s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
-        if(ymd) return `${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`;
-        // YYYY-M-D (패딩 없는 경우)
-        const ymd2=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-        if(ymd2) return `${ymd2[1]}-${ymd2[2].padStart(2,'0')}-${ymd2[3].padStart(2,'0')}`;
-        return s;
-      };
-      const toMonthStr=v=>{
-        const d=toDateStr(v);
-        return d.length>=7?d.substring(0,7):'';
-      };
-      const str=v=>v==null?'':String(v).trim();
+  // 카테고리 체크박스 렌더
+  document.getElementById('export-category-list').innerHTML = `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;
+      background:var(--surface2);border-radius:8px;cursor:pointer"
+      onclick="toggleExportSection('equip',this)">
+      <input type="checkbox" id="exp-equip" checked style="width:16px;height:16px;accent-color:var(--accent)">
+      <div>
+        <div style="font-size:13px;font-weight:600">🔧 장비 이력 <span style="color:var(--text3);font-weight:400">(${equips.length}대)</span></div>
+        <div style="font-size:11px;color:var(--text3)">장비 등록·설치·폐기 이력 전체 또는 품목별 선택</div>
+      </div>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;
+      background:var(--surface2);border-radius:8px;cursor:pointer"
+      onclick="toggleExportSection('cons',this)">
+      <input type="checkbox" id="exp-cons" checked style="width:16px;height:16px;accent-color:var(--orange)">
+      <div>
+        <div style="font-size:13px;font-weight:600">🧴 소모품 구매·소모 이력 <span style="color:var(--text3);font-weight:400">(${consLogs.length}건)</span></div>
+        <div style="font-size:11px;color:var(--text3)">구매·소모 이력 전체 또는 품목별·기간별 선택</div>
+      </div>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;
+      background:var(--surface2);border-radius:8px;cursor:pointer">
+      <input type="checkbox" id="exp-visitors" style="width:16px;height:16px;accent-color:var(--teal)">
+      <div>
+        <div style="font-size:13px;font-weight:600">👥 입장객 데이터 <span style="color:var(--text3);font-weight:400">(${Object.keys(visitors).length}개월)</span></div>
+        <div style="font-size:11px;color:var(--text3)">월별 입장객 수</div>
+      </div>
+    </label>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;
+      background:var(--surface2);border-radius:8px;cursor:pointer">
+      <input type="checkbox" id="exp-items" style="width:16px;height:16px;accent-color:var(--purple)">
+      <div>
+        <div style="font-size:13px;font-weight:600">📦 품목 기준정보 <span style="color:var(--text3);font-weight:400">(${items.length}개)</span></div>
+        <div style="font-size:11px;color:var(--text3)">품목명·카테고리·기준재고·단위 등 설정값</div>
+      </div>
+    </label>`;
 
-      const normalizeLocation=raw=>{
-        const s=str(raw).replace(/\s+/g,'');
-        const m={
-          '여사B1':'여사 B1','여사B2':'여사 B2',
-          '남사B1':'남사 B1','남사B2':'남사 B2',
-          '지원팀':'지원팀','직원용':'직원용','여분':'여분',
-          '수리예정':'여분','폐기예정':'여분',
-        };
-        return m[s]||'여분';
-      };
-      const normalizeStatus=raw=>{
-        const s=str(raw);
-        const m={'사용중':'사용중','사용':'사용중',
-                 '수리중':'수리중','수리':'수리중','수리예정':'수리중',
-                 '여분':'여분','보관':'여분',
-                 '폐기':'폐기','폐기예정':'폐기'};
-        return m[s]||'사용중';
-      };
+  // 장비 품목 칩
+  document.getElementById('export-equip-items').innerHTML =
+    `<span onclick="toggleExpChip(this,'all-equip')"
+      data-key="all-equip"
+      style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;
+        cursor:pointer;border:1.5px solid var(--accent);
+        background:var(--accent);color:#fff">전체</span>` +
+    equipItems.map(i=>`
+      <span onclick="toggleExpChip(this,'equip-${i.id}')"
+        data-key="equip-${i.id}"
+        style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
+          cursor:pointer;border:1.5px solid var(--border);
+          background:transparent;color:var(--text2);transition:all .15s">
+        ${i.name} (${equips.filter(e=>e.itemName===i.name).length}대)
+      </span>`).join('');
 
-      // ── 시트 파싱 헬퍼 (3행 헤더 기준) ──
-      const getSheetRows=(ws, headerRow=3)=>{
-        // raw:false → 숫자·날짜 모두 문자열화, cellDates 없음
-        const raw=XLSX.utils.sheet_to_json(ws,{header:1, defval:null, raw:true});
-        const hdrArr=raw[headerRow-1]||[];
-        const cleanH=h=>h==null?'':String(h).replace(/\n/g,'').replace(/\s+/g,' ').trim();
-        const headers=hdrArr.map(cleanH);
-        return raw.slice(headerRow).map(rowArr=>{
-          const obj={};
-          headers.forEach((h,i)=>{ if(h) obj[h]=rowArr[i]??null; });
-          return obj;
-        });
-      };
+  // 소모품 품목 칩
+  document.getElementById('export-cons-items').innerHTML =
+    `<span onclick="toggleExpChip(this,'all-cons')"
+      data-key="all-cons"
+      style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;
+        cursor:pointer;border:1.5px solid var(--orange);
+        background:var(--orange);color:#fff">전체</span>` +
+    consItems.map(i=>`
+      <span onclick="toggleExpChip(this,'cons-${i.id}')"
+        data-key="cons-${i.id}"
+        style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
+          cursor:pointer;border:1.5px solid var(--border);
+          background:transparent;color:var(--text2);transition:all .15s">
+        ${i.name}
+      </span>`).join('');
 
-      // ══ 1. 소모품_구매소모 시트 ══
-      const wsName=wb.SheetNames.find(n=>n.includes('소모품')||n.includes('구매'));
-      if(wsName){
-        const rows=getSheetRows(wb.Sheets[wsName], 3);
-        rows.forEach((row,idx)=>{
-          const dateRaw = row['날짜']||'';
-          const itemName= str(row['품목명']||row['품목']||'');
-          const typeRaw = str(row['유형(구매/소모)']||row['유형']||'');
-          const qty     = parseInt(row['수량']||0)||0;
-          const unit    = str(row['단위']||'개');
-          const note    = str(row['메모(납품처·소모위치 등)']||row['메모']||'');
-
-          if(!dateRaw||!itemName||!typeRaw||!qty) return;
-          if(itemName==='품목명'||itemName.startsWith('⚠')||itemName.startsWith('[')) return;
-
-          const dateStr=toDateStr(dateRaw);
-
-          if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){
-            imported.errors.push(`소모품 ${idx+4}행: 날짜 오류 (${dateRaw}→${dateStr})`); return;
-          }
-          const type=(typeRaw==='구매'||typeRaw==='in')?'in':(typeRaw==='소모'||typeRaw==='out')?'out':null;
-          if(!type){imported.errors.push(`소모품 ${idx+4}행: 유형 오류 "${typeRaw}"`);return;}
-
-          let item=items.find(i=>i.name===itemName&&i.type==='consumable');
-          if(!item){
-            item={id:nextItemId++,type:'consumable',name:itemName,
-                  category:'소모품',minStock:10,monthlyUsage:0,
-                  unit:unit||'개',stock:0,note:''};
-            items.push(item);
-            if(!imported.autoAdded.includes(itemName)) imported.autoAdded.push(itemName);
-          }
-          if(consLogs.find(l=>l.date===dateStr&&l.itemId===item.id&&l.type===type&&l.qty===qty)) return;
-
-          const before=item.stock||0;
-          item.stock=type==='in'?before+qty:Math.max(0,before-qty);
-          consLogs.push({
-            id:'cl'+Date.now()+Math.random(),
-            itemId:item.id,itemName:item.name,
-            unit:unit||item.unit||'개',type,qty,
-            stockBefore:before,stockAfter:item.stock,
-            date:dateStr,note
-          });
-          imported.cons++;
-        });
-        consLogs.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-      }
-
-      // ══ 2. 입장객 시트 ══
-      const vsName=wb.SheetNames.find(n=>n.includes('입장객')||n.includes('visitor'));
-      if(vsName){
-        const rows=getSheetRows(wb.Sheets[vsName], 3);
-        rows.forEach(row=>{
-          const yr =parseInt(row['연도']||row['year']||0);
-          const mo =parseInt(row['월']||row['month']||0);
-          const cnt=parseInt(row['입장객 수']||row['입장객수']||row['visitors']||0);
-          if(!yr||!mo||!cnt||yr<2020||yr>2030||mo<1||mo>12) return;
-          visitors[`${yr}-${String(mo).padStart(2,'0')}`]=cnt;
-          imported.visitors++;
-        });
-      }
-
-      // ══ 3. 장비이력 — '장비' 포함 시트 전부 처리 ══
-      const eqSheets=wb.SheetNames.filter(n=>n.includes('장비'));
-      eqSheets.forEach(eqName=>{
-        const rows=getSheetRows(wb.Sheets[eqName], 3);
-        rows.forEach((row,idx)=>{
-          const itemName=str(row['품목명']||'');
-          const num     =str(row['번호']||'');
-          const model   =str(row['제조사/모델']||row['모델']||'');
-          const rawSt   =str(row['상태']||'사용중');
-          const rawLoc  =str(row['설치위치']||row['위치']||'여분');
-          // 헤더 행·안내 행 스킵
-          if(!itemName||itemName==='품목명'||itemName.startsWith('⚠')) return;
-
-          // 장비 품목 확인 — 없으면 자동 생성
-          let item=items.find(i=>i.name===itemName&&i.type==='equip');
-          if(!item){
-            item={id:nextItemId++,type:'equip',name:itemName,
-                  category:'전기용품',minStock:1,monthlyUsage:0,unit:'대',stock:0,note:'',
-                  fb1:0,fb2:0,mb1:0,mb2:0,sup:0,emp:0,spare:0,repair:0,discard:0};
-            items.push(item);
-            const tag=itemName+' (장비)';
-            if(!imported.autoAdded.includes(tag)) imported.autoAdded.push(tag);
-          }
-          // 중복 스킵
-          if(num&&equips.find(eq=>eq.itemName===itemName&&eq.num===num)) return;
-
-          // 구매월·폐기월 헤더에 \n 포함 → cleanHeader 후 '구매월(YYYY-MM)'
-          const buyRaw =row['구매월(YYYY-MM)']||row['구매월']||'';
-          const instRaw=row['설치일(YYYY-MM-DD)']||row['설치일']||'';
-          const discRaw=row['폐기월(YYYY-MM)']||row['폐기월']||'';
-
-          equips.push({
-            id:'e'+Date.now()+Math.random(),
-            itemName,num,model,
-            buyMonth:    toMonthStr(buyRaw),
-            installDate: toDateStr(instRaw),
-            location:    normalizeLocation(rawLoc),
-            status:      normalizeStatus(rawSt),
-            discardMonth:toMonthStr(discRaw),
-            discardReason:str(row['폐기사유']||''),
-            note:         str(row['메모']||'')
-          });
-          imported.equips++;
-        });
-      });
-      if(eqSheets.length>0) syncEquipToItems();
-
-      saveData();
-      renderDashboard();renderItems();renderManage();
-      if(document.getElementById('page-equipment').classList.contains('active')) renderEquip();
-      if(document.getElementById('page-consumable').classList.contains('active')) renderCons();
-      if(document.getElementById('page-analytics').classList.contains('active')) renderAnalytics();
-      // 데이터 분석 연도 셀렉터 업데이트 — 가져온 데이터 연도 자동 반영
-      const importedYears=[...new Set(Object.keys(visitors).map(k=>k.split('-')[0]))];
-      const anYearSel=document.getElementById('an-year');
-      if(anYearSel&&importedYears.length){
-        const existing=[...anYearSel.options].map(o=>o.value);
-        importedYears.forEach(y=>{
-          if(!existing.includes(y)){
-            const opt=document.createElement('option');
-            opt.value=y;opt.textContent=y+'년';
-            anYearSel.insertBefore(opt,anYearSel.firstChild);
-          }
-        });
-        // 가장 많은 데이터가 있는 연도로 자동 선택
-        anYearSel.value=importedYears.sort()[0];
-      }
-      const consYearSel=document.getElementById('cons-year-sel');
-      if(consYearSel&&importedYears.length){
-        const existing=[...consYearSel.options].map(o=>o.value);
-        importedYears.forEach(y=>{
-          if(!existing.includes(y)){
-            const opt=document.createElement('option');
-            opt.value=y;opt.textContent=y+'년';
-            consYearSel.insertBefore(opt,consYearSel.firstChild);
-          }
-        });
-        consYearSel.value=importedYears.sort()[0];
-      }
-
-      // ── 결과 팝업 ──
-      let msg=`✅ 가져오기 완료!\n\n`
-        +`• 구매·소모 이력 : ${imported.cons}건\n`
-        +`• 입장객 데이터  : ${imported.visitors}건\n`
-        +`• 장비 이력      : ${imported.equips}건 (${eqSheets.length}개 시트)`;
-      if(imported.autoAdded.length){
-        msg+=`\n\n📌 자동 생성 품목 (${imported.autoAdded.length}개):\n${imported.autoAdded.join(', ')}\n→ [품목 관리]에서 기준재고·월소모량을 설정해주세요.`;
-      }
-      if(imported.errors.length){
-        msg+=`\n\n⚠ 건너뛴 항목 ${imported.errors.length}건:\n`+imported.errors.slice(0,6).join('\n');
-        if(imported.errors.length>6) msg+=`\n... 외 ${imported.errors.length-6}건`;
-      }
-      alert(msg);
-    }catch(err){
-      alert('❌ 파일 읽기 오류: '+err.message);
-      console.error(err);
-    }
-    input.value='';
-  };
-  reader.readAsArrayBuffer(file);
-  toast('파일 분석 중...','📂');
+  // 기간 기본값
+  const now = nowMonth();
+  document.getElementById('export-from').value = '';
+  document.getElementById('export-to').value = '';
+  document.getElementById('export-equip-section').style.display = 'block';
+  document.getElementById('export-cons-section').style.display = 'block';
+  document.getElementById('export-period-section').style.display = 'block';
+  openM('export-modal');
 }
 
-// ── 현재 데이터 엑셀로 내보내기 ──
-function exportCurrentData(){
-  const wb=XLSX.utils.book_new();
+function toggleExportSection(type, labelEl){
+  // 체크박스 상태 변경은 기본 동작 사용
+}
 
-  // 소모품 이력
-  const consRows=consLogs.map(l=>({
-    날짜:l.date||'',
-    품목명:l.itemName,
-    유형:l.type==='in'?'구매':'소모',
-    수량:l.qty,
-    단위:l.unit||'개',
-    처리후재고:l.stockAfter,
-    메모:l.note||''
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consRows), '소모품_구매소모');
+function toggleExpChip(el, key){
+  const isAll = key.startsWith('all-');
+  const prefix = key.startsWith('equip') ? 'equip' : 'cons';
+  const activeColor = prefix==='equip' ? 'var(--accent)' : 'var(--orange)';
 
-  // 입장객
-  const visRows=Object.entries(visitors).sort().map(([k,v])=>({
-    연도:parseInt(k.split('-')[0]),
-    월:parseInt(k.split('-')[1]),
-    '입장객 수':v
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(visRows), '입장객');
+  if(isAll){
+    // 전체 선택 → 나머지 해제
+    el.closest('#export-equip-items, #export-cons-items')
+      ?.querySelectorAll('span').forEach(s=>{
+        const k = s.dataset.key;
+        if(k===key){
+          s.style.background=activeColor; s.style.color='#fff';
+          s.style.borderColor=activeColor;
+        } else {
+          s.style.background='transparent'; s.style.color='var(--text2)';
+          s.style.borderColor='var(--border)';
+        }
+      });
+  } else {
+    // 개별 → 전체 칩 해제
+    const container = el.closest('#export-equip-items, #export-cons-items');
+    const allChip = container?.querySelector('[data-key^="all-"]');
+    if(allChip){
+      allChip.style.background='transparent';
+      allChip.style.color='var(--text2)';
+      allChip.style.borderColor='var(--border)';
+    }
+    // 토글
+    const active = el.style.background !== 'transparent';
+    if(active){
+      el.style.background='transparent'; el.style.color='var(--text2)';
+      el.style.borderColor='var(--border)';
+    } else {
+      el.style.background=activeColor; el.style.color='#fff';
+      el.style.borderColor=activeColor;
+    }
+  }
+}
 
-  // 장비이력
-  const eqRows=equips.map(e=>({
-    품목명:e.itemName, 번호:e.num, '제조사/모델':e.model,
-    구매월:e.buyMonth, 설치일:e.installDate, 설치위치:e.location,
-    상태:e.status, 폐기월:e.discardMonth, 폐기사유:e.discardReason, 메모:e.note
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eqRows), '장비이력');
+function getSelectedExpChips(containerId){
+  const container = document.getElementById(containerId);
+  if(!container) return {all:true, keys:[]};
+  const selected = [...container.querySelectorAll('span')]
+    .filter(s=>s.style.background!=='transparent'&&s.style.background!=='');
+  const allSelected = selected.some(s=>s.dataset.key?.startsWith('all-'));
+  if(allSelected) return {all:true, keys:[]};
+  return {all:false, keys:selected.map(s=>s.dataset.key)};
+}
 
-  const today=nowDate();
-  XLSX.writeFile(wb, `사우나_비품데이터_${today}.xlsx`);
-  toast('엑셀 내보내기 완료','💾');
+function doSelectiveExport(){
+  const expEquip    = document.getElementById('exp-equip')?.checked;
+  const expCons     = document.getElementById('exp-cons')?.checked;
+  const expVisitors = document.getElementById('exp-visitors')?.checked;
+  const expItems    = document.getElementById('exp-items')?.checked;
+  const fromM = document.getElementById('export-from')?.value;
+  const toM   = document.getElementById('export-to')?.value;
+
+  if(!expEquip && !expCons && !expVisitors && !expItems){
+    toast('내보낼 데이터를 하나 이상 선택하세요','⚠️'); return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // ── 장비 이력
+  if(expEquip){
+    const {all, keys} = getSelectedExpChips('export-equip-items');
+    const selectedNames = all ? null :
+      keys.map(k=>items.find(i=>i.id==k.replace('equip-',''))?.name).filter(Boolean);
+
+    let rows = equips.filter(e=>!selectedNames || selectedNames.includes(e.itemName));
+    if(fromM) rows = rows.filter(e=>e.buyMonth >= fromM);
+    if(toM)   rows = rows.filter(e=>!e.buyMonth||e.buyMonth <= toM);
+
+    // 내보내기 헤더 명확하게
+    const sheet = rows.map(e=>({
+      '품목명':      e.itemName,
+      '번호':        e.num||'',
+      '세대':        e.generation||1,
+      '제조사/모델': e.model||'',
+      '구매월':      e.buyMonth||'',
+      '설치일':      e.installDate||'',
+      '설치위치':    e.location||'',
+      '상태':        e.status||'사용중',
+      '폐기월':      e.discardMonth||'',
+      '폐기사유':    e.discardReason||'',
+      '메모':        e.note||''
+    }));
+
+    const sheetName = selectedNames?.length===1 ? `장비_${selectedNames[0]}` : '장비이력';
+    if(sheet.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), sheetName.substring(0,31));
+    else toast('선택된 장비 데이터 없음','⚠️');
+  }
+
+  // ── 소모품 이력
+  if(expCons){
+    const {all, keys} = getSelectedExpChips('export-cons-items');
+    const selectedIds = all ? null :
+      keys.map(k=>parseInt(k.replace('cons-',''))).filter(Boolean);
+
+    let rows = consLogs.filter(l=>!selectedIds || selectedIds.includes(l.itemId));
+    if(fromM) rows = rows.filter(l=>(l.date||'')>=fromM+'-01');
+    if(toM)   rows = rows.filter(l=>(l.date||'')<=toM+'-31');
+
+    const sheet = rows.map(l=>({
+      '날짜':     l.date||'',
+      '품목명':   l.itemName,
+      '유형':     l.type==='in'?'구매':'소모',
+      '수량':     l.qty,
+      '단위':     l.unit||'개',
+      '처리후재고': l.stockAfter??'',
+      '메모':     l.note||''
+    }));
+
+    if(sheet.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet), '소모품_이력');
+    else toast('선택된 소모품 이력 없음','⚠️');
+  }
+
+  // ── 입장객
+  if(expVisitors){
+    const rows = Object.entries(visitors).sort().map(([k,v])=>({
+      '연도': parseInt(k.split('-')[0]),
+      '월':   parseInt(k.split('-')[1]),
+      '입장객 수': v
+    }));
+    if(rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '입장객');
+  }
+
+  // ── 품목 기준정보
+  if(expItems){
+    const rows = items.map(i=>({
+      '유형':      i.type==='equip'?'장비':'소모품',
+      '품목명':    i.name,
+      '카테고리':  i.category||'',
+      '기준재고':  i.minStock||0,
+      '월소모량':  i.monthlyUsage||0,
+      '단위':      i.unit||'개',
+      '현재재고':  i.type==='consumable'?i.stock||0:getEquipActive(i),
+      '비고':      i.note||''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '품목기준정보');
+  }
+
+  if(!wb.SheetNames.length){
+    toast('내보낼 데이터가 없습니다','⚠️'); return;
+  }
+
+  const fname = `사우나_${wb.SheetNames.join('_')}_${nowDate()}.xlsx`.replace(/[^\w가-힣_\-\.]/g,'_');
+  XLSX.writeFile(wb, fname);
+  closeM('export-modal');
+  toast(`${wb.SheetNames.length}개 시트 내보내기 완료`,'💾');
+}
+
+// ════════════════════════════════════════════════════
+//  📂 선택적 가져오기
+// ════════════════════════════════════════════════════
+let importWorkbook = null;
+let importSheetMeta = [];
+
+function openImportModal(){
+  importWorkbook = null;
+  importSheetMeta = [];
+  document.getElementById('import-step1').style.display='block';
+  document.getElementById('import-step2').style.display='none';
+  document.getElementById('import-confirm-btn').style.display='none';
+  document.getElementById('import-drop-zone').style.borderColor='var(--border)';
+  document.getElementById('import-file-input').value='';
+  openM('import-modal');
+}
+function closeImportModal(){
+  importWorkbook=null; importSheetMeta=[];
+  closeM('import-modal');
+}
+function handleImportDrop(event){
+  event.preventDefault();
+  document.getElementById('import-drop-zone').style.borderColor='var(--border)';
+  const file = event.dataTransfer.files[0];
+  if(!file){ toast('파일을 확인해주세요','⚠️'); return; }
+  readImportFile(file);
+}
+function handleImportFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  readImportFile(file);
+}
+
+function readImportFile(file){
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      importWorkbook = XLSX.read(e.target.result,{type:'array',cellDates:false,cellText:false});
+      analyzeSheets(file.name);
+    } catch(err){
+      toast('파일 읽기 오류: '+err.message,'❌');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function analyzeSheets(filename){
+  const wb = importWorkbook;
+  if(!wb){ toast('파일을 먼저 선택하세요','⚠️'); return; }
+
+  // 각 시트 분석
+  importSheetMeta = wb.SheetNames.map(name=>{
+    const ws = wb.Sheets[name];
+    const raw = XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+    const rowCount = raw.filter(r=>r&&r.some(c=>c!=null)).length;
+    // 헤더 자동 감지
+    let type = 'unknown', desc = '알 수 없는 형식';
+    const headers = (raw[0]||[]).concat(raw[1]||[]).concat(raw[2]||[])
+      .map(h=>(h||'').toString().toLowerCase());
+
+    if(headers.some(h=>h.includes('품목명')) && headers.some(h=>h.includes('번호')||h.includes('설치위치'))){
+      type='equip'; desc=`🔧 장비 이력 (${rowCount-3}대)`;
+    } else if(headers.some(h=>h.includes('유형')) && (headers.some(h=>h.includes('구매')||h.includes('소모'))
+      || headers.some(h=>h.includes('날짜')))){
+      type='cons'; desc=`🧴 소모품 이력 (${rowCount-3}건)`;
+    } else if(headers.some(h=>h.includes('입장객'))||headers.some(h=>h.includes('visitor'))){
+      type='visitors'; desc=`👥 입장객 데이터 (${rowCount-3}개월)`;
+    } else if(headers.some(h=>h.includes('기준재고'))||headers.some(h=>h.includes('품목')&&h.includes('유형'))){
+      type='items'; desc=`📦 품목 기준정보 (${rowCount-1}개)`;
+    } else {
+      // 헤더 없는 단순 장비 목록 시도
+      if(name.includes('장비')||name.includes('equip')||name.includes('드라이기')||
+         name.includes('탈수기')||name.includes('선풍기')){
+        type='equip_raw'; desc=`🔧 장비 목록 (${rowCount}행) — 헤더 감지 중`;
+      } else {
+        desc = `❓ 형식 불명 (${rowCount}행) — 헤더를 확인하세요`;
+      }
+    }
+    return {name, type, desc, rowCount, ws, selected:type!=='unknown'&&type!=='equip_raw'};
+  });
+
+  // 단계2 표시
+  document.getElementById('import-step1').style.display='none';
+  document.getElementById('import-step2').style.display='block';
+  document.getElementById('import-filename').textContent = filename;
+  document.getElementById('import-sheetcount').textContent = `시트 ${wb.SheetNames.length}개 감지됨`;
+  document.getElementById('import-confirm-btn').style.display='inline-flex';
+
+  renderImportSheetList();
+}
+
+function renderImportSheetList(){
+  const list = document.getElementById('import-sheet-list');
+  const typeColor = {equip:'var(--accent)',cons:'var(--orange)',visitors:'var(--teal)',
+    items:'var(--purple)',equip_raw:'var(--yellow)',unknown:'var(--text3)'};
+
+  list.innerHTML = importSheetMeta.map((s,i)=>`
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;
+      background:var(--surface2);border-radius:8px;cursor:pointer">
+      <input type="checkbox" id="imp-sheet-${i}"
+        ${s.selected?'checked':''}
+        style="width:16px;height:16px;margin-top:2px;accent-color:${typeColor[s.type]||'var(--accent)'}">
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:700">${s.name}</span>
+          <span style="font-size:11px;background:${typeColor[s.type]||'var(--text3)'}22;
+            color:${typeColor[s.type]||'var(--text3)'};padding:1px 7px;
+            border-radius:8px;font-weight:600">${s.desc}</span>
+        </div>
+        ${s.type==='equip'||s.type==='equip_raw'?`
+          <div style="margin-top:6px;font-size:11px;color:var(--text3)">
+            ⚙️ 기존 같은 품목의 장비를 어떻게 처리할까요?
+            <select id="imp-equip-mode-${i}"
+              style="margin-left:6px;background:var(--bg);border:1px solid var(--border);
+                border-radius:4px;padding:2px 6px;font-size:11px;color:var(--text)">
+              <option value="add">추가 (기존 유지)</option>
+              <option value="replace_item">해당 품목만 교체</option>
+              <option value="replace_all">전체 장비 교체</option>
+            </select>
+          </div>`:
+        s.type==='cons'?`
+          <div style="margin-top:6px;font-size:11px;color:var(--text3)">
+            중복 이력은 자동으로 건너뜁니다
+          </div>`:''
+        }
+      </div>
+    </label>`).join('');
+
+  // 미리보기 정보
+  const selCount = importSheetMeta.filter((s,i)=>{
+    const cb = document.getElementById(`imp-sheet-${i}`);
+    return cb ? cb.checked : s.selected;
+  }).length;
+  document.getElementById('import-preview-info').textContent =
+    `✅ ${importSheetMeta.length}개 시트 중 ${selCount}개 선택됨`;
+}
+
+function doSelectiveImport(){
+  if(!importWorkbook){ toast('파일을 선택하세요','⚠️'); return; }
+  const importMode = document.querySelector('input[name="import-mode"]:checked')?.value || 'merge';
+  let totalImported = 0;
+  const errors = [];
+  const autoAdded = [];
+
+  // 공통 헬퍼 (기존 importXlsx와 동일)
+  const toDateStr=v=>{
+    if(!v&&v!==0) return '';
+    if(typeof v==='number'||(!isNaN(Number(v))&&String(v).trim()!==''&&!/[-\/T]/.test(String(v)))){
+      const n=typeof v==='number'?v:Number(v);
+      if(n>40000&&n<60000){
+        const d=new Date(Math.round((n-25569)*86400*1000));
+        return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+      }
+    }
+    const s=String(v).trim();
+    if(!s) return '';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if(/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.substring(0,10);
+    const mdy=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(mdy) return `${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}`;
+    const ymd=s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if(ymd) return `${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`;
+    const ymd2=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if(ymd2) return `${ymd2[1]}-${ymd2[2].padStart(2,'0')}-${ymd2[3].padStart(2,'0')}`;
+    return s;
+  };
+  const toMonthStr=v=>{const d=toDateStr(v);return d.length>=7?d.substring(0,7):'';};
+  const str=v=>v==null?'':String(v).trim();
+  const normalizeLocation=raw=>{
+    const s=str(raw).replace(/\s+/g,'');
+    const m={'여사B1':'여사 B1','여사B2':'여사 B2','남사B1':'남사 B1','남사B2':'남사 B2',
+      '지원팀':'지원팀','직원용':'직원용','여분':'여분','수리예정':'여분','폐기예정':'여분'};
+    return m[s]||'여분';
+  };
+  const normalizeStatus=raw=>{
+    const s=str(raw);
+    const m={'사용중':'사용중','사용':'사용중','수리중':'수리중','수리':'수리중',
+      '수리예정':'수리중','여분':'여분','보관':'여분','폐기':'폐기','폐기예정':'폐기'};
+    return m[s]||'사용중';
+  };
+  const getSheetRows=(ws,headerRow=1)=>{
+    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+    // 헤더 행 자동 탐지 (최대 3행까지)
+    let hi=0;
+    for(let r=0;r<Math.min(3,raw.length);r++){
+      const row=raw[r]||[];
+      if(row.some(c=>c&&/품목명|번호|날짜|유형|입장객|기준재고/.test(String(c)))){hi=r;break;}
+    }
+    const hdrArr=raw[hi]||[];
+    const cleanH=h=>h==null?'':String(h).replace(/\n/g,'').replace(/\s+/g,' ').trim();
+    const headers=hdrArr.map(cleanH);
+    return raw.slice(hi+1).map(rowArr=>{
+      const obj={};
+      headers.forEach((h,i)=>{if(h) obj[h]=rowArr[i]??null;});
+      return obj;
+    }).filter(r=>Object.values(r).some(v=>v!=null));
+  };
+
+  // 각 선택된 시트 처리
+  importSheetMeta.forEach((s,i)=>{
+    const cb = document.getElementById(`imp-sheet-${i}`);
+    if(!cb?.checked) return;
+    const equipMode = document.getElementById(`imp-equip-mode-${i}`)?.value||'add';
+
+    if(s.type==='equip'||s.type==='equip_raw'){
+      const rows = getSheetRows(s.ws);
+      let count=0;
+      // 덮어쓰기 모드 처리
+      if(equipMode==='replace_all') equips=[];
+
+      rows.forEach((row,idx)=>{
+        const itemName=str(row['품목명']||row['장비명']||'');
+        const num=str(row['번호']||row['일련번호']||'');
+        if(!itemName||itemName==='품목명') return;
+
+        // 해당 품목만 교체
+        if(equipMode==='replace_item' && num){
+          equips=equips.filter(e=>!(e.itemName===itemName&&e.num===num));
+        }
+        // 중복 체크 (추가 모드)
+        if(equipMode==='add' && num && equips.find(e=>e.itemName===itemName&&e.num===num)) return;
+
+        // 품목 자동 생성
+        let item=items.find(i=>i.name===itemName&&i.type==='equip');
+        if(!item){
+          item={id:nextItemId++,type:'equip',name:itemName,category:'전기용품',
+            minStock:1,monthlyUsage:0,unit:'대',stock:0,note:'',
+            fb1:0,fb2:0,mb1:0,mb2:0,sup:0,emp:0,spare:0,repair:0,discard:0};
+          items.push(item);
+          if(!autoAdded.includes(itemName)) autoAdded.push(itemName);
+        }
+        equips.push({
+          id:'e'+Date.now()+Math.random(),
+          itemName, num,
+          generation:parseInt(row['세대']||row['generation']||1)||1,
+          model:str(row['제조사/모델']||row['모델']||row['model']||''),
+          buyMonth:toMonthStr(row['구매월']||row['buyMonth']||''),
+          installDate:toDateStr(row['설치일']||row['installDate']||''),
+          location:normalizeLocation(row['설치위치']||row['location']||'여분'),
+          status:normalizeStatus(row['상태']||row['status']||'사용중'),
+          discardMonth:toMonthStr(row['폐기월']||''),
+          discardReason:str(row['폐기사유']||''),
+          note:str(row['메모']||row['note']||'')
+        });
+        count++; totalImported++;
+      });
+      syncEquipToItems();
+      if(count) toast(`🔧 ${s.name}: ${count}대 가져오기 완료`,'✅');
+
+    } else if(s.type==='cons'){
+      const rows = getSheetRows(s.ws);
+      let count=0;
+      rows.forEach(row=>{
+        const dateStr=toDateStr(row['날짜']||row['date']||'');
+        const itemName=str(row['품목명']||'');
+        const typeRaw=str(row['유형']||'');
+        const qty=parseInt(row['수량']||0)||0;
+        if(!dateStr||!itemName||!typeRaw||!qty) return;
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){errors.push(`소모품: 날짜 오류 (${row['날짜']})`);return;}
+        const type=(typeRaw==='구매'||typeRaw==='in')?'in':(typeRaw==='소모'||typeRaw==='out')?'out':null;
+        if(!type){errors.push(`소모품: 유형 오류 "${typeRaw}"`);return;}
+        // 중복 체크
+        if(consLogs.find(l=>l.date===dateStr&&l.itemName===itemName&&l.type===type&&l.qty===qty)) return;
+        let item=items.find(i=>i.name===itemName&&i.type==='consumable');
+        if(!item){
+          item={id:nextItemId++,type:'consumable',name:itemName,category:'소모품',
+            minStock:10,monthlyUsage:0,unit:str(row['단위']||'개'),stock:0,note:''};
+          items.push(item);
+          if(!autoAdded.includes(itemName)) autoAdded.push(itemName);
+        }
+        const before=item.stock||0;
+        item.stock=type==='in'?before+qty:Math.max(0,before-qty);
+        consLogs.push({
+          id:'cl'+Date.now()+Math.random(),
+          itemId:item.id,itemName:item.name,
+          unit:str(row['단위']||item.unit||'개'),type,qty,
+          stockBefore:before,stockAfter:item.stock,
+          date:dateStr,note:str(row['메모']||'')
+        });
+        count++; totalImported++;
+      });
+      consLogs.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+      if(count) toast(`🧴 ${s.name}: ${count}건 가져오기 완료`,'✅');
+
+    } else if(s.type==='visitors'){
+      const rows = getSheetRows(s.ws);
+      let count=0;
+      rows.forEach(row=>{
+        const yr=parseInt(row['연도']||row['year']||0);
+        const mo=parseInt(row['월']||row['month']||0);
+        const cnt=parseInt(row['입장객 수']||row['입장객수']||row['visitors']||0);
+        if(!yr||!mo||!cnt||yr<2020||yr>2030||mo<1||mo>12) return;
+        visitors[`${yr}-${String(mo).padStart(2,'0')}`]=cnt;
+        count++; totalImported++;
+      });
+      if(count) toast(`👥 입장객 ${count}개월 가져오기 완료`,'✅');
+
+    } else if(s.type==='items'){
+      const rows = getSheetRows(s.ws);
+      rows.forEach(row=>{
+        const name=str(row['품목명']||'');
+        const type=str(row['유형']||'').includes('소모')?'consumable':'equip';
+        if(!name) return;
+        const existing=items.find(i=>i.name===name&&i.type===type);
+        if(existing){
+          // 기준정보 업데이트
+          existing.category=str(row['카테고리']||existing.category);
+          existing.minStock=parseInt(row['기준재고']||existing.minStock)||0;
+          existing.monthlyUsage=parseInt(row['월소모량']||existing.monthlyUsage)||0;
+          existing.unit=str(row['단위']||existing.unit);
+          existing.note=str(row['비고']||existing.note);
+        } else {
+          const newItem={id:nextItemId++,type,name,
+            category:str(row['카테고리']||'기타'),
+            minStock:parseInt(row['기준재고']||10)||10,
+            monthlyUsage:parseInt(row['월소모량']||0)||0,
+            unit:str(row['단위']||'개'),note:str(row['비고']||''),stock:0};
+          if(type==='equip') Object.assign(newItem,{fb1:0,fb2:0,mb1:0,mb2:0,sup:0,emp:0,spare:0,repair:0,discard:0});
+          items.push(newItem);
+          autoAdded.push(name);
+        }
+        totalImported++;
+      });
+    }
+  });
+
+  if(totalImported===0&&errors.length===0){
+    toast('가져올 데이터가 없거나 이미 동일한 데이터입니다','⚠️'); return;
+  }
+
+  saveData();
+  renderDashboard(); renderItems(); renderManage(); renderEquip(); renderCons();
+  if(document.getElementById('page-analytics').classList.contains('active')) renderAnalytics();
+
+  closeImportModal();
+
+  let msg = `✅ 가져오기 완료! 총 ${totalImported}건`;
+  if(autoAdded.length) msg += `\n📌 새로 추가된 품목: ${autoAdded.join(', ')}`;
+  if(errors.length) msg += `\n⚠️ 오류 ${errors.length}건: ${errors.slice(0,3).join(', ')}`;
+  alert(msg);
 }
 
 // ════════════════════════════════════════════════════
@@ -4489,14 +4987,17 @@ function exportReportExcel(){
 // ── 앱 시작 ──
 (async()=>{
   await loadData();
+  // 크록스 미존재 시 자동 추가 + 저장
+  if(!unifStock['크록스']){
+    unifStock = migrateUnifStock(unifStock) || unifStock;
+    await saveUnifStock();
+  }
   startRealtimeSync();
   renderDashboard();
   // 알림 뱃지 초기화 및 주기적 업데이트
   updateAlertBadge();
-  setInterval(updateAlertBadge, 30000); // 30초마다 갱신
-  // 보고서 월 선택 초기화
+  setInterval(updateAlertBadge, 30000);
   initReportMonthSel();
-  // 모바일 메뉴 버튼
   if(window.innerWidth<=768){
     const btn=document.getElementById('mob-menu-btn');
     if(btn) btn.style.display='inline-flex';
@@ -4547,44 +5048,32 @@ function ljStockSizeTotal(size){
   if(!e||!e.locs) return 0;
   return Object.values(e.locs).reduce((a,b)=>a+b,0);
 }
+// alias — 위치별 관리 제거 후 총합
+const getLjStockTotal = ljStockSizeTotal;
+
 function getLjTotal(){
   return getSIZES().reduce((s,sz)=>s+ljStockSizeTotal(sz),0);
 }
 function getLjBySize(){
   const m={};
-  // 현재 브랜드에 등록된 품목
   getSIZES().forEach(s=>m[s]=ljStockSizeTotal(s));
-  // ljStock에 있는 구형 키도 포함
   (ljStock||[]).forEach(r=>{ if(m[r.size]===undefined) m[r.size]=ljStockSizeTotal(r.size); });
   return m;
 }
-function getLjByLoc(){
-  const m={};
-  LJ_LOCS.forEach(l=>m[l]=0);
-  getSIZES().forEach(sz=>{
-    const e=ljStockGetEntry(sz);
-    if(!e||!e.locs) return;
-    LJ_LOCS.forEach(l=>{ m[l]=(m[l]||0)+(e.locs[l]||0); });
-  });
-  return m;
-}
 
-// 구매/폐기 시 ljStock 업데이트 (기본 위치: 자켓 대여소)
-function ljStockAdd(size, qty, loc='자켓 대여소'){
-  const cur = ljStockGetLoc(size, loc);
-  ljStockSetLoc(size, loc, cur+qty);
+// 구매/폐기 시 ljStock 업데이트 (기본 위치로 통합)
+function ljStockAdd(size, qty){
+  let e = (ljStock||[]).find(r=>r.size===size);
+  if(!e){ e={size, locs:{}}; ljStock.push(e); }
+  if(!e.locs) e.locs={};
+  const cur = Object.values(e.locs).reduce((a,b)=>a+b,0);
+  e.locs = {'기본': cur+qty};
 }
 function ljStockSubtract(size, qty){
-  let remain = qty;
-  for(const loc of LJ_LOCS){
-    const cur = ljStockGetLoc(size, loc);
-    if(cur>0){
-      const take = Math.min(cur, remain);
-      ljStockSetLoc(size, loc, cur-take);
-      remain -= take;
-      if(remain<=0) break;
-    }
-  }
+  let e = (ljStock||[]).find(r=>r.size===size);
+  if(!e) return;
+  const cur = Object.values(e.locs||{}).reduce((a,b)=>a+b,0);
+  e.locs = {'기본': Math.max(0, cur-qty)};
 }
 
 function setLjTab(mode){
@@ -4620,6 +5109,7 @@ function renderLjStock(area){
   const BRAND_GROUPS = getBRAND_GROUPS();
 
   area.innerHTML = `
+    <!-- 요약 카드 -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
       <div class="stat-card" style="border-top:3px solid var(--teal)">
         <div class="sc-val">${total}</div><div class="sc-lbl">전체 보유</div>
@@ -4632,29 +5122,177 @@ function renderLjStock(area){
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <!-- 헤더 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div class="sec" style="margin:0">🦺 품목별 재고 현황</div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="openLjBrandEditModal()">⚙️ 품목 편집</button>
-        <button class="btn btn-ghost btn-sm" onclick="openLjEditModal()">✏️ 재고 편집</button>
+        <button class="btn btn-primary btn-sm" onclick="saveLjStockAll()">✅ 저장</button>
       </div>
     </div>
 
+    <!-- 브랜드별 재고 카드 (인라인 수량 편집) -->
     ${BRAND_GROUPS.map(g=>{
       const brandTotal = g.fullItems.reduce((s,sz)=>s+(bySize[sz]||0),0);
-      return `<div style="border:1px solid ${g.color}44;border-radius:10px;padding:14px;margin-bottom:14px">
+      return `
+      <div style="border:1.5px solid ${g.color}55;border-radius:12px;padding:16px;margin-bottom:14px">
+        <!-- 브랜드 헤더 -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
+          <span style="font-size:14px;font-weight:800;color:${g.color}">🏷 ${g.name}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;font-weight:700;background:${g.bg};color:${g.color};
+              border-radius:6px;padding:3px 10px">합계 ${brandTotal}개</span>
+            <button onclick="openLjAddItemModal('${g.id}')"
+              style="background:${g.bg};border:1px solid ${g.color}55;border-radius:6px;
+                padding:3px 10px;font-size:11px;font-weight:700;color:${g.color};cursor:pointer">
+              ＋ 품목 추가
+            </button>
+          </div>
+        </div>
+        <!-- 품목별 수량 카드 (직접 편집) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
+          ${g.fullItems.map(s=>{
+            const qty = getLjStockTotal(s);
+            const label = s.replace(g.name+' ','');
+            const safeKey = s.replace(/[()\/·\s]/g,'-');
+            return `
+            <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;
+              position:relative;border:1px solid var(--border)">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:8px;
+                line-height:1.4">${label}</div>
+              <input type="number" min="0"
+                id="ljqty-${safeKey}"
+                value="${qty}"
+                style="width:72px;text-align:center;background:var(--surface);
+                  border:2px solid ${qty>0?g.color+'88':'var(--border)'};border-radius:8px;
+                  padding:6px 4px;font-size:22px;font-weight:900;
+                  color:${qty>0?g.color:'var(--text3)'};font-family:'IBM Plex Mono',monospace;
+                  outline:none;transition:border-color .15s"
+                onfocus="this.style.borderColor='${g.color}'"
+                onblur="this.style.borderColor=parseInt(this.value)>0?'${g.color}88':'var(--border)'"
+                onchange="ljQtyChanged('${s}',this.value)">
+              <div style="font-size:10px;color:var(--text3);margin-top:4px">개</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}
+
+    <!-- 신규 브랜드 추가 -->
+    <div style="border:1.5px dashed var(--border2);border-radius:12px;padding:14px;
+      display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text3)">➕ 새 브랜드 추가</span>
+      <input id="lj-new-brand-quick" class="fi" placeholder="브랜드명 (예: 코오롱)"
+        style="flex:1;min-width:130px;max-width:200px">
+      <button class="btn btn-ghost btn-sm" onclick="quickAddLjBrand()">추가</button>
+    </div>`;
+}
+
+// 수량 변경 임시 저장
+const ljQtyChanges = {};
+function ljQtyChanged(size, val){
+  ljQtyChanges[size] = parseInt(val)||0;
+}
+
+// 전체 저장
+function saveLjStockAll(){
+  const BRAND_GROUPS = getBRAND_GROUPS();
+  BRAND_GROUPS.forEach(g=>{
+    g.fullItems.forEach(s=>{
+      const safeKey = s.replace(/[()\/·\s]/g,'-');
+      const el = document.getElementById('ljqty-'+safeKey);
+      if(!el) return;
+      const qty = parseInt(el.value)||0;
+      // 단일 위치로 저장 (위치별 관리 제거 → '기본' 으로 통합)
+      let e = (ljStock||[]).find(r=>r.size===s);
+      if(!e){ e={size:s, locs:{}}; ljStock.push(e); }
+      e.locs = {'기본': qty};
+    });
+  });
+  saveLjData();
+  toast('재고 저장 완료','✅');
+  renderLj();
+}
+
+// 단일 위치 합계 (위치별 관리 제거 후 총합)
+// getLjStockTotal = ljStockSizeTotal (alias defined above)
+
+// 빠른 브랜드 추가
+function quickAddLjBrand(){
+  const name = document.getElementById('lj-new-brand-quick')?.value.trim();
+  if(!name){ toast('브랜드명을 입력하세요','⚠️'); return; }
+  if(ljBrands.find(g=>g.name===name)){ toast('이미 존재하는 브랜드입니다','⚠️'); return; }
+  // 랜덤 색상
+  const colors = ['#2563EB','#059669','#D97706','#DC2626','#7C3AED','#0891B2','#BE185D'];
+  const color = colors[ljBrands.length % colors.length];
+  const hex = color.replace('#','');
+  const r=parseInt(hex.substring(0,2),16), gv=parseInt(hex.substring(2,4),16), b=parseInt(hex.substring(4,6),16);
+  ljBrands.push({id:'b'+Date.now(), name, color, bg:`rgba(${r},${gv},${b},.08)`, items:[]});
+  document.getElementById('lj-new-brand-quick').value='';
+  saveLjBrandsData(); renderLj();
+  toast(`${name} 브랜드 추가됨`,'✅');
+}
+
+// 품목 추가 모달 (간단)
+function openLjAddItemModal(brandId){
+  const g = ljBrands.find(b=>b.id===brandId); if(!g) return;
+  const name = prompt(`[${g.name}] 새 품목명 입력\n예: 55kg/단체용, 영유아/일반`);
+  if(!name) return;
+  if(g.items.includes(name)){ toast('이미 존재하는 품목입니다','⚠️'); return; }
+  g.items.push(name);
+  saveLjBrandsData(); renderLj();
+  toast(`${g.name} - ${name} 추가됨`,'✅');
+}
+
+
+function renderLjHistory(area){
+  const logs = (ljLogs||[]).slice().reverse();
+  const BRAND_GROUPS = getBRAND_GROUPS();
+  const bySize = getLjBySize();
+  const total = getLjTotal();
+
+  const nowM = new Date().toISOString().substring(0,7);
+  const thisMonthBuy     = logs.filter(l=>l.type==='구매'&&l.month===nowM)
+    .reduce((s,l)=>s+Object.values(l.sizes||{}).reduce((a,b)=>a+b,0),0);
+  const thisMonthDiscard = logs.filter(l=>l.type==='폐기'&&l.month===nowM)
+    .reduce((s,l)=>s+Object.values(l.sizes||{}).reduce((a,b)=>a+b,0),0);
+
+  area.innerHTML = `
+    <!-- 요약 카드 (재고현황과 동일) -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+      <div class="stat-card" style="border-top:3px solid var(--teal)">
+        <div class="sc-val">${total}</div><div class="sc-lbl">전체 보유</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid var(--green)">
+        <div class="sc-val" style="color:var(--green)">+${thisMonthBuy}</div><div class="sc-lbl">이번달 구매</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid var(--red)">
+        <div class="sc-val" style="color:var(--red)">-${thisMonthDiscard}</div><div class="sc-lbl">이번달 폐기</div>
+      </div>
+      <div class="stat-card" style="border-top:3px solid var(--purple)">
+        <div class="sc-val" style="color:var(--purple)">${logs.length}</div><div class="sc-lbl">전체 이력</div>
+      </div>
+    </div>
+
+    <!-- 현재 재고 현황 (재고탭과 동일 구조) -->
+    <div class="sec" style="margin-bottom:12px">🦺 현재 재고 현황</div>
+    ${BRAND_GROUPS.map(g=>{
+      const brandTotal = g.fullItems.reduce((s,sz)=>s+(bySize[sz]||0),0);
+      return `
+      <div style="border:1.5px solid ${g.color}55;border-radius:12px;padding:14px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <span style="font-size:13px;font-weight:700;color:${g.color}">🏷 ${g.name}</span>
+          <span style="font-size:13px;font-weight:800;color:${g.color}">🏷 ${g.name}</span>
           <span style="font-size:12px;font-weight:700;background:${g.bg};color:${g.color};
             border-radius:6px;padding:3px 10px">합계 ${brandTotal}개</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
           ${g.fullItems.map(s=>{
-            const qty = bySize[s]||0;
+            const qty = getLjStockTotal(s);
             const label = s.replace(g.name+' ','');
-            return `<div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center">
-              <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;line-height:1.3">${label}</div>
-              <div style="font-size:24px;font-weight:900;color:${qty>0?g.color:'var(--text3)'}">${qty}</div>
+            return `<div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center;
+              border:1px solid var(--border)">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:4px;line-height:1.4">${label}</div>
+              <div style="font-size:22px;font-weight:900;color:${qty>0?g.color:'var(--text3)'}">${qty}</div>
               <div style="font-size:10px;color:var(--text3)">개</div>
             </div>`;
           }).join('')}
@@ -4662,88 +5300,50 @@ function renderLjStock(area){
       </div>`;
     }).join('')}
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px">
-      <div class="sec" style="margin:0">📍 보관 위치별 수량 <span style="font-size:11px;font-weight:400;color:var(--text3)">(직접 입력 후 ✅ 저장)</span></div>
-      <button class="btn btn-primary btn-sm" onclick="saveAllLjLocQty()">✅ 전체 저장</button>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="equip-detail-table" id="lj-loc-table">
-        <thead><tr>
-          <th style="min-width:110px">위치 \\ 품목</th>
-          ${BRAND_GROUPS.flatMap(g=>g.fullItems.map(fk=>`<th style="text-align:center;min-width:64px;font-size:10px;color:var(--text3)">${fk.replace(/(농협|G마켓|씽크빅)\s/,'')}</th>`)).join('')}
-          <th style="text-align:center;min-width:60px">합계</th>
-        </tr></thead>
-        <tbody>
-          ${LJ_LOCS.map(loc=>{
-            const allFull = BRAND_GROUPS.flatMap(g=>g.fullItems);
-            const rowTotal = allFull.reduce((s,sz)=>s+ljStockGetLoc(sz,loc),0);
-            return `<tr>
-              <td style="font-weight:700">${loc}</td>
-              ${allFull.map(sz=>{
-                const safeKey=(loc+sz).replace(/[()\/·\s]/g,'-');
-                const cur=ljStockGetLoc(sz,loc);
-                return `<td style="padding:4px 2px;text-align:center">
-                  <input type="number" min="0" value="${cur}"
-                    id="ljloc-${safeKey}"
-                    onchange="updateLjLocQty('${sz}','${loc}',this.value)"
-                    style="width:54px;text-align:center;background:var(--surface2);border:1px solid var(--border);
-                      border-radius:4px;padding:3px;font-size:12px;color:var(--text);font-family:inherit">
-                </td>`;
-              }).join('')}
-              <td style="text-align:center;font-weight:700;color:var(--teal)" id="ljrow-${loc.replace(/\s/g,'-')}">${rowTotal}</td>
-            </tr>`;
+    <!-- 입출고 이력 목록 -->
+    <div class="sec" style="margin:20px 0 12px">📋 입출고 이력</div>
+    ${!logs.length
+      ? '<div class="empty-st">이력이 없습니다.</div>'
+      : `<div style="display:flex;flex-direction:column;gap:8px">
+          ${logs.map(l=>{
+            const lTotal = Object.values(l.sizes||{}).reduce((a,b)=>a+b,0);
+            const isIn = l.type==='구매';
+            const borderC = isIn ? 'rgba(34,197,94,.3)' : 'rgba(239,68,68,.3)';
+            const bgC     = isIn ? 'rgba(34,197,94,.04)' : 'rgba(239,68,68,.04)';
+            // 품목별 수량 요약
+            const sizeItems = BRAND_GROUPS.flatMap(g=>
+              g.fullItems.filter(s=>(l.sizes?.[s]||0)>0).map(s=>{
+                const label = s.replace(g.name+' ','');
+                return `<span style="background:${isIn?'rgba(34,197,94,.12)':'rgba(239,68,68,.1)'};
+                  color:${isIn?'var(--green)':'var(--red)'};border-radius:5px;
+                  padding:1px 7px;font-size:11px;font-weight:700">
+                  ${label} ×${l.sizes[s]}
+                </span>`;
+              })
+            ).join('');
+            return `
+            <div style="background:${bgC};border:1px solid ${borderC};border-radius:10px;
+              padding:12px 14px;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div style="min-width:80px">
+                <div style="font-size:12px;color:var(--text3);margin-bottom:3px">📅 ${l.month}</div>
+                <span class="badge ${isIn?'b-ok':'b-danger'}" style="font-size:11px">
+                  ${isIn?'📦 구매':'🗑 폐기'}
+                </span>
+              </div>
+              <div style="flex:1;min-width:150px">
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">${sizeItems}</div>
+                ${l.note?`<div style="font-size:11px;color:var(--text3)">💬 ${l.note}</div>`:''}
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+                <div style="font-size:18px;font-weight:900;color:${isIn?'var(--green)':'var(--red)'}">
+                  ${isIn?'+':'-'}${lTotal}개
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="delLjLog('${l.id}')">🗑</button>
+              </div>
+            </div>`;
           }).join('')}
-          <tr style="border-top:2px solid var(--border)">
-            <td style="font-weight:700">합계</td>
-            ${BRAND_GROUPS.flatMap(g=>g.fullItems.map(sz=>`<td style="text-align:center;font-weight:700">${ljStockSizeTotal(sz)}</td>`)).join('')}
-            <td style="text-align:center;font-weight:900;color:var(--accent)" id="lj-grand-total">${total}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>`;
-}
-
-
-function renderLjHistory(area){
-  const logs = (ljLogs||[]).slice().reverse();
-  if(!logs.length){ area.innerHTML='<div class="empty-st">이력이 없습니다.</div>'; return; }
-
-  const BRAND_GROUPS = getBRAND_GROUPS();
-
-  area.innerHTML=`
-    <div style="overflow-x:auto"><table class="equip-detail-table">
-      <thead>
-        <tr>
-          <th rowspan="2" style="min-width:80px">월</th>
-          <th rowspan="2">유형</th>
-          ${BRAND_GROUPS.map(g=>`<th colspan="${g.fullItems.length}" style="text-align:center;color:${g.color};border-bottom:2px solid ${g.color}44">${g.name}</th>`).join('')}
-          <th rowspan="2">합계</th><th rowspan="2">메모</th><th rowspan="2">삭제</th>
-        </tr>
-        <tr>
-          ${BRAND_GROUPS.flatMap(g=>g.fullItems.map(s=>{
-            const label=s.replace(g.name+' ','');
-            return `<th style="font-size:10px;min-width:70px;color:var(--text3)">${label}</th>`;
-          })).join('')}
-        </tr>
-      </thead>
-      <tbody>${logs.map(l=>{
-        const total = Object.values(l.sizes||{}).reduce((a,b)=>a+b,0);
-        const badge = l.type==='구매'?'b-ok':'b-danger';
-        return `<tr>
-          <td><span class="mth mth-buy">${l.month}</span></td>
-          <td><span class="badge ${badge}">${l.type==='구매'?'📦 구매':'🗑 폐기'}</span></td>
-          ${BRAND_GROUPS.flatMap(g=>g.fullItems.map(s=>{
-            const v=l.sizes?.[s]||0;
-            return `<td style="text-align:center;${v>0?'font-weight:700;color:'+(l.type==='구매'?'var(--green)':'var(--red)'):'color:var(--text3)'}">${v||'-'}</td>`;
-          })).join('')}
-          <td style="text-align:center;font-weight:700;color:${l.type==='구매'?'var(--green)':'var(--red)'}">
-            ${l.type==='구매'?'+':'−'}${total}
-          </td>
-          <td style="font-size:12px">${l.note||'-'}</td>
-          <td><button class="btn btn-danger btn-sm" onclick="delLjLog('${l.id}')">🗑</button></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
+        </div>`
+    }`;
 }
 
 function openLjTxModal(type){
@@ -4763,11 +5363,21 @@ function openLjTxModal(type){
         ${g.fullItems.map(fullKey=>{
           const label = fullKey.replace(g.name+' ','');
           const safeKey = fullKey.replace(/[()\/·\s]/g,'-');
+          const curStock = ljStockSizeTotal(fullKey);
           return `<div style="background:var(--surface2);border-radius:6px;padding:8px;text-align:center">
             <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:4px;line-height:1.3">${label}</div>
-            ${type==='폐기'?`<div style="font-size:10px;color:${g.color};margin-bottom:3px">보유:${bySize[fullKey]||0}</div>`:''}
-            <input class="fi" type="number" min="0" value="0" id="lj-tx-${safeKey}"
-              style="width:100%;text-align:center;padding:4px">
+            ${type==='폐기'
+              ? `<div style="font-size:10px;color:${g.color};margin-bottom:3px">보유: <b>${curStock}</b></div>`
+              : ''}
+            <input type="number" min="0" max="${type==='폐기'?curStock:9999}" value="0"
+              id="lj-tx-${safeKey}"
+              style="width:100%;text-align:center;padding:4px;
+                background:var(--bg);border:1px solid var(--border);border-radius:6px;
+                font-size:16px;font-weight:700;color:var(--text);font-family:'IBM Plex Mono',monospace;
+                outline:none"
+              onfocus="this.style.borderColor='${g.color}'"
+              onblur="this.style.borderColor='var(--border)'"
+              ${type==='폐기'&&curStock===0?'disabled style="opacity:.4"':''}>
           </div>`;
         }).join('')}
       </div>
@@ -4784,69 +5394,63 @@ function saveLjTx(){
   const allSizes = getSIZES();
   const sizes={};
   let total=0;
-  allSizes.forEach(s=>{
-    const safeKey = s.replace(/[()\/·\s]/g,'-');
-    const qty = parseInt(document.getElementById(`lj-tx-${safeKey}`)?.value)||0;
-    sizes[s]=qty; total+=qty;
-  });
-  if(!total){ toast('수량을 1개 이상 입력하세요','⚠️'); return; }
 
-  if(type==='폐기'){
-    const over=allSizes.filter(s=>(sizes[s]||0)>ljStockSizeTotal(s));
-    if(over.length){ toast(`재고 부족: ${over.map(s=>s.split(' ').slice(1).join(' ')).join(', ')}`, '⚠️'); return; }
+  allSizes.forEach(s=>{
+    // openLjTxModal 과 동일한 safeKey 생성 방식
+    const safeKey = s.replace(/[()\/·\s]/g,'-');
+    const el = document.getElementById(`lj-tx-${safeKey}`);
+    const qty = el ? (parseInt(el.value)||0) : 0;
+    if(qty>0) sizes[s]=qty;
+    total+=qty;
+  });
+
+  // input을 직접 순회해서 못 잡은 경우 보완
+  if(total===0){
+    document.querySelectorAll('[id^="lj-tx-"]').forEach(el=>{
+      const v = parseInt(el.value)||0;
+      if(v>0 && el.id !== 'lj-tx-type' && el.id !== 'lj-tx-id'
+        && el.id !== 'lj-tx-month' && el.id !== 'lj-tx-note'
+        && el.id !== 'lj-tx-save-btn' && el.id !== 'lj-tx-title'){
+        // safeKey → fullKey 역변환
+        const sk = el.id.replace('lj-tx-','');
+        const match = allSizes.find(s=>s.replace(/[()\/·\s]/g,'-')===sk);
+        if(match){ sizes[match]=v; total+=v; }
+      }
+    });
   }
 
-  allSizes.forEach(s=>{
-    const qty = sizes[s]||0; if(!qty) return;
-    if(type==='구매') ljStockAdd(s, qty, '자켓 대여소');
+  if(!total){ toast('수량을 1개 이상 입력하세요','⚠️'); return; }
+
+  // 폐기 시 재고 부족 체크
+  if(type==='폐기'){
+    const over = Object.entries(sizes).filter(([s,q])=>q>ljStockSizeTotal(s));
+    if(over.length){
+      toast(`재고 부족: ${over.map(([s])=>s.split(' ').slice(1).join(' ')).join(', ')}`, '⚠️');
+      return;
+    }
+  }
+
+  // 재고 반영
+  Object.entries(sizes).forEach(([s,qty])=>{
+    if(type==='구매') ljStockAdd(s, qty);
     else ljStockSubtract(s, qty);
   });
 
   ljLogs.push({id:'ll'+Date.now(), month, type, sizes, note, createdAt:new Date().toISOString()});
-  saveLjData(); closeM('lj-tx-modal'); renderLj();
+  saveLjData();
+  closeM('lj-tx-modal');
+  renderLj();
   toast(`${type} ${total}개 처리 완료`, type==='구매'?'📦':'🗑');
 }
 
-// ── 위치별 수량 직접 입력 핸들러 ──
-function updateLjLocQty(size, loc, val){
-  const qty = parseInt(val)||0;
-  ljStockSetLoc(size, loc, qty);
-  // 행 합계 실시간 업데이트
-  const allFull = getSIZES();
-  const rowTotal = allFull.reduce((s,sz)=>s+ljStockGetLoc(sz,loc),0);
-  const rowEl = document.getElementById('ljrow-'+loc.replace(/\s/g,'-'));
-  if(rowEl) rowEl.textContent = rowTotal;
-  // 그랜드 토탈 업데이트
-  const grandEl = document.getElementById('lj-grand-total');
-  if(grandEl) grandEl.textContent = getLjTotal();
-}
-
-function saveAllLjLocQty(){
-  // 테이블의 모든 input 값을 읽어 ljStock에 반영
-  const BRAND_GROUPS = getBRAND_GROUPS();
-  const allFull = BRAND_GROUPS.flatMap(g=>g.fullItems);
-  LJ_LOCS.forEach(loc=>{
-    allFull.forEach(sz=>{
-      const safeKey=(loc+sz).replace(/[()\/·\s]/g,'-');
-      const el = document.getElementById(`ljloc-${safeKey}`);
-      if(el) ljStockSetLoc(sz, loc, parseInt(el.value)||0);
-    });
-  });
-  saveLjData(); renderLj();
-  toast('위치별 수량 저장 완료','✅');
-}
-
 function delLjLog(id){
-  if(!confirm('이 이력을 삭제할까요?\n※ 재고에는 반영되지 않습니다. 위치별 수량표에서 직접 수정하세요.')) return;
+  if(!confirm('이 이력을 삭제할까요?\n※ 재고 수량은 변경되지 않습니다.')) return;
   ljLogs = ljLogs.filter(l=>l.id!==id);
   saveLjData(); renderLj(); toast('삭제됨','🗑');
 }
 
 function openLjEditModal(){
-  // 재고 편집은 이제 위치별 수량 테이블에서 직접 입력
-  // 이 함수는 하위 호환성 유지용 — 재고 현황 탭으로 스크롤
-  document.getElementById('lj-content').scrollIntoView({behavior:'smooth'});
-  toast('아래 위치별 수량 표에서 직접 입력하세요 👇','💡');
+  toast('재고 현황 탭에서 수량을 직접 수정하세요 👇','💡');
 }
 
 function saveLjEdit(){
@@ -4871,8 +5475,14 @@ const ST_ITEMS_DEF = ['수건','수영복','락커키','슬리퍼','유니폼/�
 
 function setStTab(mode){
   stTabMode = mode;
-  const colors = {stock:'var(--orange)', issue:'var(--accent)', discard:'var(--red)', history:'var(--purple)'};
-  ['stock','issue','discard','history'].forEach(t=>{
+  const colors = {
+    dashboard:'var(--teal)',
+    stock:'var(--orange)',
+    issue:'var(--accent)',
+    discard:'var(--red)',
+    history:'var(--purple)'
+  };
+  ['dashboard','stock','issue','discard','history'].forEach(t=>{
     const btn = document.getElementById(`st-tab-${t}`);
     if(btn){
       btn.style.background = t===mode ? colors[t] : 'transparent';
@@ -4885,7 +5495,8 @@ function setStTab(mode){
 function renderSt(){
   const area = document.getElementById('st-content');
   if(!area) return;
-  if(stTabMode==='stock')   renderStStock(area);
+  if(stTabMode==='dashboard') renderStDashboard(area);
+  else if(stTabMode==='stock')   renderStStock(area);
   else if(stTabMode==='issue')   renderStIssue(area);
   else if(stTabMode==='discard') renderStDiscard(area);
   else renderStHistory(area);
@@ -4942,6 +5553,243 @@ function getUnifIssuedMap(){
   return issued;
 }
 
+// ════════════════════════════════════════════════════
+//  👥 근무자 대시보드
+// ════════════════════════════════════════════════════
+function renderStDashboard(area){
+  const today = nowDate();
+
+  // 미반납 목록
+  const active = staffLogs.filter(l=>!l.returnedAt);
+
+  // 근무자별 그룹핑
+  const byStaff = {};
+  active.forEach(l=>{
+    const n = l.staffName||'미입력';
+    if(!byStaff[n]) byStaff[n]=[];
+    byStaff[n].push(l);
+  });
+
+  // 통계
+  const totalIssued    = active.length;
+  const overdueList    = active.filter(l=>l.returnDue && l.returnDue < today);
+  const dueSoonList    = active.filter(l=>l.returnDue && l.returnDue >= today &&
+    l.returnDue <= new Date(Date.now()+7*24*60*60*1000).toISOString().substring(0,10));
+  const noReturnDate   = active.filter(l=>!l.returnDue);
+  const staffCount     = Object.keys(byStaff).length;
+
+  // 총 지급 품목 수량
+  const totalItems = active.reduce((s,l)=>
+    s+Object.values(l.items||{}).reduce((a,b)=>a+(b||0),0),0);
+
+  // 상태 태그 헬퍼
+  function statusTag(l){
+    if(!l.returnedAt){
+      if(l.returnDue && l.returnDue < today)
+        return `<span style="background:rgba(239,68,68,.15);color:var(--red);
+          font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;
+          animation:badgePulse 1.5s infinite">⚠️ 기한초과</span>`;
+      if(l.returnDue && l.returnDue <= new Date(Date.now()+7*24*60*60*1000).toISOString().substring(0,10))
+        return `<span style="background:rgba(245,158,11,.15);color:var(--yellow);
+          font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">⏰ 7일내반납</span>`;
+      return `<span style="background:rgba(79,142,247,.15);color:var(--accent);
+        font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">지급중</span>`;
+    }
+    return `<span style="background:rgba(34,197,94,.15);color:var(--green);
+      font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">반납완료</span>`;
+  }
+
+  // 품목 요약 텍스트
+  function itemSummary(log){
+    const its = Object.entries(log.items||{}).filter(([,q])=>q>0);
+    if(!its.length) return '<span style="color:var(--text3)">품목 없음</span>';
+    return its.map(([k,q])=>{
+      const label = k.startsWith('유니폼_')
+        ? k.replace('유니폼_','').replace(/_/g,' ')
+        : k;
+      return `<span style="background:var(--surface2);border:1px solid var(--border);
+        border-radius:5px;padding:1px 6px;font-size:11px;margin:1px;display:inline-block">
+        ${label} ×${q}</span>`;
+    }).join('');
+  }
+
+  // 근무자 카드 렌더
+  function staffCard(name, logs){
+    const isOverdue = logs.some(l=>l.returnDue && l.returnDue < today);
+    const isSoon    = !isOverdue && logs.some(l=>l.returnDue &&
+      l.returnDue <= new Date(Date.now()+7*24*60*60*1000).toISOString().substring(0,10));
+    const borderColor = isOverdue ? 'rgba(239,68,68,.5)'
+      : isSoon ? 'rgba(245,158,11,.4)' : 'var(--border)';
+    const headerBg = isOverdue ? 'rgba(239,68,68,.08)'
+      : isSoon ? 'rgba(245,158,11,.06)' : 'var(--surface2)';
+    const initials = name.slice(-2);
+
+    return `<div style="background:var(--surface);border:1.5px solid ${borderColor};
+      border-radius:14px;overflow:hidden;transition:box-shadow .15s"
+      onmouseover="this.style.boxShadow='0 4px 20px rgba(0,0,0,.3)'"
+      onmouseout="this.style.boxShadow='none'">
+
+      <!-- 카드 헤더 -->
+      <div style="background:${headerBg};padding:12px 14px;
+        display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+        <div style="width:38px;height:38px;border-radius:50%;
+          background:${isOverdue?'var(--red)':isSoon?'var(--yellow)':'var(--accent)'};
+          display:flex;align-items:center;justify-content:center;
+          font-size:14px;font-weight:800;color:#fff;flex-shrink:0">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px">${name}</div>
+          <div style="font-size:11px;color:var(--text3)">
+            지급 ${logs.length}건 · 품목 ${logs.reduce((s,l)=>
+              s+Object.values(l.items||{}).reduce((a,b)=>a+(b||0),0),0)}개
+          </div>
+        </div>
+        ${isOverdue
+          ? `<span style="background:var(--red);color:#fff;font-size:10px;
+              font-weight:700;padding:3px 8px;border-radius:8px">⚠️ 기한초과</span>`
+          : isSoon
+          ? `<span style="background:var(--yellow);color:#000;font-size:10px;
+              font-weight:700;padding:3px 8px;border-radius:8px">⏰ 임박</span>`
+          : ''}
+      </div>
+
+      <!-- 지급 내역 목록 -->
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px">
+        ${logs.map(l=>{
+          const od = l.returnDue && l.returnDue < today;
+          return `<div style="background:${od?'rgba(239,68,68,.05)':'var(--surface2)'};
+            border:1px solid ${od?'rgba(239,68,68,.2)':'var(--border)'};
+            border-radius:8px;padding:8px 10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;
+              margin-bottom:5px;flex-wrap:wrap;gap:4px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:11px;color:var(--text3)">📅 ${l.issueDate||'-'}</span>
+                ${l.returnDue?`<span style="font-size:11px;
+                  color:${od?'var(--red)':'var(--text3)'}">
+                  → ${l.returnDue} ${od?'⚠️':''}</span>`:''}
+              </div>
+              ${statusTag(l)}
+            </div>
+            <div style="line-height:1.8">${itemSummary(l)}</div>
+            ${l.note?`<div style="font-size:11px;color:var(--text3);margin-top:4px">
+              💬 ${l.note}</div>`:''}
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px"
+                onclick="openStIssueModal('${l.id}')">✏️ 편집</button>
+              ${!l.returnedAt?`<button class="btn btn-sm"
+                style="font-size:10px;padding:3px 8px;background:rgba(34,197,94,.15);
+                  color:var(--green);border:1px solid rgba(34,197,94,.3)"
+                onclick="quickReturn('${l.id}')">✅ 반납</button>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  area.innerHTML = `
+    <!-- 통계 카드 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+      gap:10px;margin-bottom:20px">
+      <div class="stat-card" style="--cc:var(--teal);padding:14px;text-align:center">
+        <div class="stat-lbl">지급 중인 직원</div>
+        <div class="stat-val" style="color:var(--teal)">${staffCount}</div>
+        <div class="stat-sub">명</div>
+      </div>
+      <div class="stat-card" style="--cc:var(--accent);padding:14px;text-align:center">
+        <div class="stat-lbl">전체 지급 건수</div>
+        <div class="stat-val" style="color:var(--accent)">${totalIssued}</div>
+        <div class="stat-sub">미반납 ${totalIssued}건</div>
+      </div>
+      <div class="stat-card" style="--cc:var(--orange);padding:14px;text-align:center">
+        <div class="stat-lbl">총 지급 품목</div>
+        <div class="stat-val" style="color:var(--orange)">${totalItems}</div>
+        <div class="stat-sub">개</div>
+      </div>
+      <div class="stat-card" style="--cc:var(--red);padding:14px;text-align:center">
+        <div class="stat-lbl">반납 기한 초과</div>
+        <div class="stat-val" style="color:${overdueList.length>0?'var(--red)':'var(--green)'}">${overdueList.length}</div>
+        <div class="stat-sub">${overdueList.length>0?overdueList.map(l=>l.staffName).filter((v,i,a)=>a.indexOf(v)===i).slice(0,2).join(', '):'모두 정상'}</div>
+      </div>
+      <div class="stat-card" style="--cc:var(--yellow);padding:14px;text-align:center">
+        <div class="stat-lbl">7일 내 반납 예정</div>
+        <div class="stat-val" style="color:${dueSoonList.length>0?'var(--yellow)':'var(--green)'}">${dueSoonList.length}</div>
+        <div class="stat-sub">건</div>
+      </div>
+      <div class="stat-card" style="--cc:var(--text3);padding:14px;text-align:center">
+        <div class="stat-lbl">반납일 미지정</div>
+        <div class="stat-val" style="color:var(--text3)">${noReturnDate.length}</div>
+        <div class="stat-sub">건</div>
+      </div>
+    </div>
+
+    <!-- 기한 초과자 경고 배너 -->
+    ${overdueList.length?`
+    <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+      border-radius:10px;padding:12px 16px;margin-bottom:16px;
+      display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">🚨</span>
+      <div>
+        <div style="font-weight:700;color:var(--red);font-size:13px">
+          반납 기한 초과 ${overdueList.length}건
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">
+          ${[...new Set(overdueList.map(l=>l.staffName))].join(', ')} 님의 물품 반납이 지연되고 있습니다
+        </div>
+      </div>
+    </div>`:''}
+
+    <!-- 근무자별 카드 -->
+    ${Object.keys(byStaff).length===0
+      ? `<div class="empty-st">현재 지급 중인 물품이 없습니다 😊</div>`
+      : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">
+          ${Object.entries(byStaff)
+            // 기한초과 → 임박 → 일반 순 정렬
+            .sort(([,a],[,b])=>{
+              const aOd = a.some(l=>l.returnDue&&l.returnDue<today)?2:
+                          a.some(l=>l.returnDue&&l.returnDue<=new Date(Date.now()+7*24*60*60*1000).toISOString().substring(0,10))?1:0;
+              const bOd = b.some(l=>l.returnDue&&l.returnDue<today)?2:
+                          b.some(l=>l.returnDue&&l.returnDue<=new Date(Date.now()+7*24*60*60*1000).toISOString().substring(0,10))?1:0;
+              return bOd-aOd;
+            })
+            .map(([name,logs])=>staffCard(name,logs)).join('')}
+        </div>`
+    }`;
+}
+
+// ── 빠른 반납 처리
+function quickReturn(logId){
+  const log = staffLogs.find(l=>l.id===logId);
+  if(!log) return;
+  if(!confirm(`${log.staffName} 님의 물품을 반납 처리할까요?\n(사용감 재고로 복구됩니다)`)) return;
+
+  // 재고 복구 (사용감으로)
+  Object.entries(log.items||{}).forEach(([key, qty])=>{
+    if(!qty) return;
+    if(key.startsWith('유니폼_')){
+      const p = key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
+      if(!p) return;
+      const [,g,t,sz] = p;
+      if(!unifStock[g]?.[t]) return;
+      const cur = unifStock[g][t][sz];
+      if(typeof cur === 'object'){
+        unifStock[g][t][sz].used = (cur.used||0) + qty;
+      } else {
+        unifStock[g][t][sz] = (cur||0) + qty;
+      }
+    } else {
+      const sidx = staffStock.findIndex(s=>s.item===key);
+      if(sidx>-1) staffStock[sidx].qty = (staffStock[sidx].qty||0) + qty;
+    }
+  });
+
+  log.returnedAt = nowDate();
+  log.returnCondition = '정상';
+  saveStData();
+  saveUnifStock();
+  renderSt();
+  toast(`${log.staffName} 님 반납 완료 (사용감 재고 복구)`, '✅');
+}
+
 function renderStStock(area){
   const stockMap = getStockMap();
   const unifIssued = getUnifIssuedMap();
@@ -4951,107 +5799,121 @@ function renderStStock(area){
   // 일반 품목 (유니폼 아닌 것)
   const noCat = Object.keys(stockMap).filter(it=>!isUnifItem(staffStock.find(s=>s.item===it)||{item:it}));
 
-  // ── 유니폼 카드 렌더 (여자/남자 각각)
+  // ── 유니폼/크록스 카드 렌더
   function unifCard(gender){
-    const color = gender==='여자' ? '#EC4899' : '#3B82F6';
+    const isCrocs = gender === '크록스';
+    const color = isCrocs ? '#F97316' : gender==='여자' ? '#EC4899' : '#3B82F6';
+    const icon  = isCrocs ? '👟' : '👔';
     const gData = unifStock[gender] || {};
     const types = Object.keys(gData);
-
-    // 전체 합계
-    let grandTotal=0, grandIssued=0, grandDiscard=0;
+    let grandNew=0, grandUsed=0, grandIssued=0, grandDiscard=0;
     types.forEach(type=>{
-      Object.entries(gData[type]||{}).forEach(([sz,qty])=>{
-        grandTotal+=qty;
+      Object.entries(gData[type]||{}).forEach(([sz,v])=>{
+        const nv=typeof v==='object'?(v.new||0):(v||0);
+        const uv=typeof v==='object'?(v.used||0):0;
+        grandNew+=nv; grandUsed+=uv;
         grandIssued+=(unifIssued[gender]?.[type]?.[sz]||0);
         grandDiscard+=(unifDiscardMap[gender]?.[type]?.[sz]||0);
       });
     });
+    const grandTotal=grandNew+grandUsed;
     const grandAvail=grandTotal-grandIssued;
-
     return `
     <div style="border:2px solid ${color}44;border-radius:12px;padding:16px;margin-bottom:16px">
-      <!-- 카드 헤더 -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:15px;font-weight:800;color:${color}">👔 ${gender} 유니폼</span>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px"
-            onclick="addUnifType('${gender}')">＋ 종류 추가</button>
+          <span style="font-size:15px;font-weight:800;color:${color}">${icon} ${gender}${isCrocs?'':' 유니폼'}</span>
+          ${!isCrocs?`<button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="addUnifType('${gender}')">＋ 종류 추가</button>`:''}
         </div>
-        <div style="font-size:12px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
-          <span>전체 <b style="color:${color}">${grandTotal}</b></span>
-          <span>지급중 <b style="color:var(--yellow)">${grandIssued}</b></span>
-          <span>가용 <b style="color:${grandAvail<=0?'var(--red)':'var(--green)'}">${grandAvail}</b></span>
-          ${grandDiscard>0?`<span>폐기 <b style="color:var(--red)">${grandDiscard}</b></span>`:''}
+        <div style="font-size:11px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="background:rgba(34,197,94,.12);color:var(--green);padding:2px 7px;border-radius:6px">🟢 새것 <b>${grandNew}</b></span>
+          <span style="background:rgba(245,158,11,.12);color:var(--yellow);padding:2px 7px;border-radius:6px">🟡 사용감 <b>${grandUsed}</b></span>
+          <span style="color:var(--text3)">지급 <b style="color:var(--yellow)">${grandIssued}</b></span>
+          <span style="color:var(--text3)">가용 <b style="color:${grandAvail<=0?'var(--red)':'var(--green)'}">${grandAvail}</b></span>
         </div>
       </div>
-
-      <!-- 종류(상의/하의)별 블록 -->
+      <div style="font-size:10px;color:var(--accent);margin-bottom:10px">
+        ※ 지급·폐기 시 🟡 사용감 수량 먼저 차감됩니다
+      </div>
       ${types.map(type=>{
-        const sizes = Object.keys(gData[type]||{});
-        let typeTotal=0, typeIssued=0, typeDiscard=0;
+        const sizes=Object.keys(gData[type]||{});
+        let tNew=0,tUsed=0,tIss=0;
         sizes.forEach(sz=>{
-          typeTotal+=(gData[type][sz]||0);
-          typeIssued+=(unifIssued[gender]?.[type]?.[sz]||0);
-          typeDiscard+=(unifDiscardMap[gender]?.[type]?.[sz]||0);
+          const v=gData[type][sz];
+          tNew+=(typeof v==='object'?v.new||0:v||0);
+          tUsed+=(typeof v==='object'?v.used||0:0);
+          tIss+=(unifIssued[gender]?.[type]?.[sz]||0);
         });
-        return `
-        <div style="margin-bottom:12px">
+        return `<div style="margin-bottom:14px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-            <span style="font-size:12px;font-weight:700;color:${color};
-              border-left:3px solid ${color};padding-left:8px">${type}</span>
+            <span style="font-size:12px;font-weight:700;color:${color};border-left:3px solid ${color};padding-left:8px">${type}</span>
             <span style="font-size:11px;color:var(--text3)">
-              총 ${typeTotal} · 지급 <span style="color:var(--yellow)">${typeIssued}</span>
-              · 가용 <span style="color:${typeTotal-typeIssued<=0?'var(--red)':'var(--green)'}">
-                ${typeTotal-typeIssued}</span>
-              ${typeDiscard>0?`· 폐기 <span style="color:var(--red)">${typeDiscard}</span>`:''}
+              새것<b style="color:var(--green)"> ${tNew}</b>
+              사용감<b style="color:var(--yellow)"> ${tUsed}</b>
+              지급<b style="color:var(--yellow)"> ${tIss}</b>
+              가용<b style="color:${tNew+tUsed-tIss<=0?'var(--red)':'var(--green)'}">${tNew+tUsed-tIss}</b>
             </span>
-            <button class="btn btn-ghost btn-sm" style="font-size:10px;margin-left:4px"
-              onclick="addUnifSize('${gender}','${type}')">＋ 사이즈</button>
-            <button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red)"
-              onclick="delUnifType('${gender}','${type}')">🗑</button>
+            ${!isCrocs?`
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="addUnifSize('${gender}','${type}')">＋ 사이즈</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px;color:var(--red)" onclick="delUnifType('${gender}','${type}')">🗑</button>`:''}
           </div>
-          <!-- 사이즈별 카드 -->
           <div style="display:flex;flex-wrap:wrap;gap:8px">
             ${sizes.map(sz=>{
-              const qty=gData[type][sz]||0;
+              const v=gData[type][sz];
+              const nqty=typeof v==='object'?(v.new||0):(v||0);
+              const uqty=typeof v==='object'?(v.used||0):0;
               const iss=unifIssued[gender]?.[type]?.[sz]||0;
               const dis=unifDiscardMap[gender]?.[type]?.[sz]||0;
-              const avail=qty-iss;
-              const col=avail<=0?'var(--red)':avail<qty*0.3?'var(--yellow)':'var(--green)';
-              return `
-              <div style="background:var(--surface2);border-radius:8px;padding:10px;
-                text-align:center;min-width:72px;position:relative">
-                <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase">${sz}</div>
-                <input type="number" min="0" value="${qty}"
-                  id="unif-${gender}-${type}-${sz}"
-                  onchange="setUnifQty('${gender}','${type}','${sz}',this.value)"
-                  style="width:56px;text-align:center;background:var(--surface);
-                    border:1px solid ${col}66;border-radius:6px;padding:4px 2px;
-                    font-size:20px;font-weight:900;color:${qty>0?col:'var(--text3)'};
-                    font-family:'IBM Plex Mono',monospace">
-                <div style="font-size:9px;margin-top:4px;color:var(--text3)">
-                  지급<span style="color:${iss>0?'var(--yellow)':'var(--text3)'}"> ${iss}</span>
-                  가용<span style="color:${col}"> ${avail}</span>
+              const tot=nqty+uqty; const avail=tot-iss;
+              const col=avail<=0?'var(--red)':avail<tot*0.3?'var(--yellow)':'var(--green)';
+              const safeG=gender.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+              const safeT=type.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+              const safeSz=sz.replace(/[^a-zA-Z0-9가-힣]/g,'_');
+              return `<div style="background:var(--surface2);border-radius:10px;padding:10px;
+                text-align:center;min-width:86px;position:relative;border:1px solid var(--border)">
+                <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;text-transform:uppercase">${sz}</div>
+                <div style="margin-bottom:5px">
+                  <div style="font-size:9px;font-weight:700;color:var(--green);margin-bottom:2px">🟢 새것</div>
+                  <input type="number" min="0" value="${nqty}"
+                    id="unif-new-${safeG}-${safeT}-${safeSz}"
+                    onchange="setUnifQtyV2('${gender}','${type}','${sz}','new',this.value)"
+                    style="width:58px;text-align:center;background:rgba(34,197,94,.06);
+                      border:1.5px solid rgba(34,197,94,.4);border-radius:6px;padding:4px 2px;
+                      font-size:18px;font-weight:900;color:${nqty>0?'var(--green)':'var(--text3)'};
+                      font-family:'IBM Plex Mono',monospace;outline:none">
+                </div>
+                <div style="margin-bottom:5px">
+                  <div style="font-size:9px;font-weight:700;color:var(--yellow);margin-bottom:2px">🟡 사용감</div>
+                  <input type="number" min="0" value="${uqty}"
+                    id="unif-used-${safeG}-${safeT}-${safeSz}"
+                    onchange="setUnifQtyV2('${gender}','${type}','${sz}','used',this.value)"
+                    style="width:58px;text-align:center;background:rgba(245,158,11,.06);
+                      border:1.5px solid rgba(245,158,11,.4);border-radius:6px;padding:4px 2px;
+                      font-size:18px;font-weight:900;color:${uqty>0?'var(--yellow)':'var(--text3)'};
+                      font-family:'IBM Plex Mono',monospace;outline:none">
+                </div>
+                <div style="font-size:9px;color:var(--text3);border-top:1px solid var(--border);padding-top:4px;line-height:1.7">
+                  합<b style="color:${col}"> ${tot}</b>
+                  · 지급<span style="color:${iss>0?'var(--yellow)':'var(--text3)'}"> ${iss}</span>
+                  · 가용<span style="color:${col}"> ${avail}</span>
                   ${dis>0?`<br>폐기<span style="color:var(--red)"> ${dis}</span>`:''}
                 </div>
-                <button onclick="delUnifSize('${gender}','${type}','${sz}')"
+                ${!isCrocs?`<button onclick="delUnifSize('${gender}','${type}','${sz}')"
                   style="position:absolute;top:2px;right:3px;background:none;border:none;
-                    cursor:pointer;font-size:10px;color:var(--text3);opacity:.5;padding:0"
-                  title="삭제">✕</button>
+                    cursor:pointer;font-size:10px;color:var(--text3);opacity:.5;padding:0">✕</button>`:''}
               </div>`;
             }).join('')}
           </div>
         </div>`;
       }).join('')}
-      ${types.length===0?`<div style="color:var(--text3);font-size:12px">종류를 추가하세요 (상의, 하의 등)</div>`:''}
     </div>`;
   }
 
+
   // ── 전체 사이즈별 합계 테이블
   function unifSummaryTable(){
-    // 모든 사이즈 수집
     const allSizes = new Set();
-    ['여자','남자'].forEach(g=>{
+    ['여자','남자','크록스'].forEach(g=>{
       Object.values(unifStock[g]||{}).forEach(sizes=>{
         Object.keys(sizes).forEach(sz=>allSizes.add(sz));
       });
@@ -5059,21 +5921,33 @@ function renderStStock(area){
     if(!allSizes.size) return '';
     const sizeList = [...allSizes];
 
+    // 수량 합산 헬퍼
+    const getTotal = v => typeof v==='object' ? (v.new||0)+(v.used||0) : (v||0);
+    const getNew   = v => typeof v==='object' ? (v.new||0) : (v||0);
+    const getUsed  = v => typeof v==='object' ? (v.used||0) : 0;
+
     const rows = [];
-    ['여자','남자'].forEach(g=>{
-      const color=g==='여자'?'#EC4899':'#3B82F6';
+    ['여자','남자','크록스'].forEach(g=>{
+      const color = g==='여자'?'#EC4899':g==='크록스'?'#F97316':'#3B82F6';
       Object.entries(unifStock[g]||{}).forEach(([type,sizes])=>{
         const cells = sizeList.map(sz=>{
-          const qty=sizes[sz]||0;
-          const iss=unifIssued[g]?.[type]?.[sz]||0;
-          const avail=qty-iss;
-          const col=avail<=0&&qty>0?'var(--red)':avail<qty*0.3&&qty>0?'var(--yellow)':'inherit';
-          return `<td style="text-align:center;font-size:12px">
-            <div style="font-weight:700;color:${col}">${qty}</div>
-            <div style="font-size:10px;color:var(--text3)">${iss>0?'지급'+iss:''}</div>
+          const v   = sizes[sz];
+          if(v===undefined) return `<td style="text-align:center;color:var(--text3)">-</td>`;
+          const tot = getTotal(v);
+          const nv  = getNew(v);
+          const uv  = getUsed(v);
+          const iss = unifIssued[g]?.[type]?.[sz]||0;
+          const avail=tot-iss;
+          const col=avail<=0&&tot>0?'var(--red)':avail<tot*0.3&&tot>0?'var(--yellow)':'inherit';
+          return `<td style="text-align:center;font-size:11px">
+            <div style="font-weight:700;color:${col}">${tot}</div>
+            <div style="font-size:9px;color:var(--text3)">
+              <span style="color:var(--green)">${nv}</span>+<span style="color:var(--yellow)">${uv}</span>
+            </div>
+            <div style="font-size:9px;color:var(--text3)">${iss>0?'지급'+iss:''}</div>
           </td>`;
         }).join('');
-        const rowTotal=Object.values(sizes).reduce((a,b)=>a+b,0);
+        const rowTotal=Object.values(sizes).reduce((s,v)=>s+getTotal(v),0);
         const rowIssued=Object.values(unifIssued[g]?.[type]||{}).reduce((a,b)=>a+b,0);
         rows.push(`<tr>
           <td style="font-weight:700;color:${color};white-space:nowrap">${g} ${type}</td>
@@ -5087,23 +5961,25 @@ function renderStStock(area){
     });
     if(!rows.length) return '';
 
-    // 사이즈 합계 행
     const sizeTotals=sizeList.map(sz=>{
       let t=0;
-      ['여자','남자'].forEach(g=>Object.values(unifStock[g]||{}).forEach(sizes=>t+=(sizes[sz]||0)));
-      return `<td style="text-align:center;font-weight:700">${t}</td>`;
+      ['여자','남자','크록스'].forEach(g=>Object.values(unifStock[g]||{}).forEach(sizes=>{
+        const v=sizes[sz]; if(v!==undefined) t+=(typeof v==='object'?(v.new||0)+(v.used||0):(v||0));
+      }));
+      return `<td style="text-align:center;font-weight:700">${t||'-'}</td>`;
     }).join('');
 
     return `
     <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text)">
-        📊 사이즈별 전체 합계
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text)">📊 사이즈별 전체 합계</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">
+        숫자: 합계 &nbsp;|&nbsp; <span style="color:var(--green)">녹색</span>+<span style="color:var(--yellow)">노랑</span> = 새것+사용감
       </div>
       <div style="overflow-x:auto">
         <table class="equip-detail-table">
           <thead><tr>
             <th>구분</th>
-            ${sizeList.map(sz=>`<th style="text-align:center;text-transform:uppercase">${sz}</th>`).join('')}
+            ${sizeList.map(sz=>`<th style="text-align:center;text-transform:uppercase;min-width:60px">${sz}</th>`).join('')}
             <th style="text-align:center">전체</th>
             <th style="text-align:center;color:var(--yellow)">지급중</th>
             <th style="text-align:center;color:var(--green)">가용</th>
@@ -5111,7 +5987,7 @@ function renderStStock(area){
           <tbody>
             ${rows.join('')}
             <tr style="border-top:2px solid var(--border)">
-              <td style="font-weight:700">사이즈별 합계</td>
+              <td style="font-weight:700">합계</td>
               ${sizeTotals}
               <td colspan="3"></td>
             </tr>
@@ -5155,7 +6031,7 @@ function renderStStock(area){
     </div>
 
     <!-- 유니폼 카드 -->
-    ${['여자','남자'].map(g=>unifCard(g)).join('')}
+    ${['여자','남자','크록스'].map(g=>unifCard(g)).join('')}
 
     <!-- 사이즈별 전체 합계 -->
     ${unifSummaryTable()}
@@ -5183,18 +6059,25 @@ function renderStStock(area){
 }
 
 // ── 유니폼 수량 직접 수정 (onchange)
+// 구버전 호환 (기존 호출 유지)
 function setUnifQty(gender, type, size, val){
+  setUnifQtyV2(gender, type, size, 'new', val);
+}
+
+// v2: new/used 구분 저장
+function setUnifQtyV2(gender, type, size, kind, val){
   const qty = parseInt(val)||0;
   if(!unifStock[gender]) unifStock[gender]={};
   if(!unifStock[gender][type]) unifStock[gender][type]={};
-  unifStock[gender][type][size] = qty;
+  const cur = unifStock[gender][type][size];
+  if(typeof cur === 'object' && cur !== null){
+    unifStock[gender][type][size][kind] = qty;
+  } else {
+    // 구버전 숫자 → 객체로 업그레이드
+    const old = typeof cur === 'number' ? cur : 0;
+    unifStock[gender][type][size] = {new: kind==='new'?qty:old, used: kind==='used'?qty:0};
+  }
   saveUnifStock();
-  // 입력칸 색상 업데이트
-  const el = document.getElementById(`unif-${gender}-${type}-${size}`);
-  const iss = getUnifIssuedMap()[gender]?.[type]?.[size]||0;
-  const avail = qty-iss;
-  const col = avail<=0?'var(--red)':avail<qty*0.3?'var(--yellow)':'var(--green)';
-  if(el) el.style.color = qty>0?col:'var(--text3)';
 }
 
 // ── 종류 추가 (상의/하의)
@@ -5215,7 +6098,7 @@ function addUnifSize(gender, type){
   if(!unifStock[gender]) unifStock[gender]={};
   if(!unifStock[gender][type]) unifStock[gender][type]={};
   if(unifStock[gender][type][key]!==undefined){ toast('이미 존재합니다','⚠️'); return; }
-  unifStock[gender][type][key]=0;
+  unifStock[gender][type][key]={new:0, used:0};
   saveUnifStock(); renderSt(); toast(`${gender} ${type} - ${key} 추가됨`,'✅');
 }
 
@@ -5442,7 +6325,7 @@ function openStDiscardModal(editId){
   let html='';
 
   // 유니폼 섹션
-  ['여자','남자'].forEach(gender=>{
+  ['여자','남자','크록스'].forEach(gender=>{
     const color=gender==='여자'?'#EC4899':'#3B82F6';
     const gData=unifStock[gender]||{};
     const types=Object.keys(gData);
@@ -5510,7 +6393,7 @@ function saveStDiscard(){
   let total=0;
 
   // 유니폼
-  ['여자','남자'].forEach(gender=>{
+  ['여자','남자','크록스'].forEach(gender=>{
     Object.entries(unifStock[gender]||{}).forEach(([type,sizes])=>{
       Object.keys(sizes).forEach(sz=>{
         const itemKey=`유니폼_${gender}_${type}_${sz}`;
@@ -5530,16 +6413,35 @@ function saveStDiscard(){
   if(!total){toast('폐기 수량을 입력하세요','⚠️');return;}
 
   // 재고 차감
+// ── 유니폼 수량 차감: 사용감 먼저, 부족하면 새것에서 차감
+function unifDeduct(g, t, sz, qty){
+  const cur = unifStock[g]?.[t]?.[sz];
+  if(cur===undefined) return;
+  if(typeof cur==='object'){
+    const usedTake = Math.min(cur.used||0, qty);
+    cur.used = Math.max(0,(cur.used||0)-usedTake);
+    const remain = qty - usedTake;
+    cur.new = Math.max(0,(cur.new||0)-remain);
+  } else {
+    unifStock[g][t][sz] = Math.max(0,(cur||0)-qty);
+  }
+}
+// ── 유니폼 수량 복구 (폐기 편집 취소 시)
+function unifRestore(g, t, sz, qty){
+  if(!unifStock[g]?.[t]) return;
+  const cur = unifStock[g][t][sz];
+  if(typeof cur==='object'){
+    cur.used = (cur.used||0)+qty; // 복구는 사용감으로
+  } else {
+    unifStock[g][t][sz] = (cur||0)+qty;
+  }
+}
+
   const stockMap=getStockMap();
   for(const [key,qty] of Object.entries(items)){
     if(key.startsWith('유니폼_')){
       const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
-      if(p){
-        const [,g,t,sz]=p;
-        if(unifStock[g]?.[t]?.[sz]!==undefined){
-          unifStock[g][t][sz]=Math.max(0,(unifStock[g][t][sz]||0)-qty);
-        }
-      }
+      if(p){ const [,g,t,sz]=p; unifDeduct(g,t,sz,qty); }
     } else {
       const idx=staffStock.findIndex(s=>s.item===key);
       if(idx>-1) staffStock[idx].qty=Math.max(0,(staffStock[idx].qty||0)-qty);
@@ -5547,13 +6449,12 @@ function saveStDiscard(){
   }
 
   if(editId){
-    // 편집 시: 기존 차감분을 먼저 복구 후 재차감
     const old=stDiscardLogs.find(l=>l.id===editId);
     if(old){
       Object.entries(old.items||{}).forEach(([key,qty])=>{
         if(key.startsWith('유니폼_')){
           const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
-          if(p){ const [,g,t,sz]=p; if(unifStock[g]?.[t]?.[sz]!==undefined) unifStock[g][t][sz]=(unifStock[g][t][sz]||0)+qty; }
+          if(p){ const [,g,t,sz]=p; unifRestore(g,t,sz,qty); }
         } else {
           const idx=staffStock.findIndex(s=>s.item===key);
           if(idx>-1) staffStock[idx].qty=(staffStock[idx].qty||0)+qty;
@@ -5564,7 +6465,7 @@ function saveStDiscard(){
     for(const [key,qty] of Object.entries(items)){
       if(key.startsWith('유니폼_')){
         const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
-        if(p){ const [,g,t,sz]=p; if(unifStock[g]?.[t]?.[sz]!==undefined) unifStock[g][t][sz]=Math.max(0,(unifStock[g][t][sz]||0)-qty); }
+        if(p){ const [,g,t,sz]=p; unifDeduct(g,t,sz,qty); }
       } else {
         const idx=staffStock.findIndex(s=>s.item===key);
         if(idx>-1) staffStock[idx].qty=Math.max(0,(staffStock[idx].qty||0)-qty);
@@ -5600,11 +6501,11 @@ function renderStDiscard(area){
   // 유니폼 사이즈별 폐기 합계 테이블
   function unifDiscardTable(){
     const allSizes=new Set();
-    ['여자','남자'].forEach(g=>Object.values(unifStock[g]||{}).forEach(sizes=>Object.keys(sizes).forEach(sz=>allSizes.add(sz))));
+    ['여자','남자','크록스'].forEach(g=>Object.values(unifStock[g]||{}).forEach(sizes=>Object.keys(sizes).forEach(sz=>allSizes.add(sz))));
     const sizeList=[...allSizes];
     if(!sizeList.length) return '';
     const rows=[];
-    ['여자','남자'].forEach(g=>{
+    ['여자','남자','크록스'].forEach(g=>{
       const color=g==='여자'?'#EC4899':'#3B82F6';
       Object.entries(unifStock[g]||{}).forEach(([type,sizes])=>{
         const discarded=unifDiscardMap[g]?.[type]||{};
@@ -5727,28 +6628,42 @@ function openStIssueModal(editId){
   let html='';
 
   // ── 유니폼 섹션 (여자/남자)
-  ['여자','남자'].forEach(gender=>{
-    const color=gender==='여자'?'#EC4899':'#3B82F6';
+  ['여자','남자','크록스'].forEach(gender=>{
+    const isCrocs = gender==='크록스';
+    const color=isCrocs?'#F97316':gender==='여자'?'#EC4899':'#3B82F6';
+    const icon =isCrocs?'👟':'👔';
     const gData=unifStock[gender]||{};
     const types=Object.keys(gData);
     if(!types.length) return;
     html+=`<div style="border:1px solid ${color}44;border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:8px">👔 ${gender} 유니폼</div>`;
+      <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:8px">${icon} ${gender}${isCrocs?'':' 유니폼'}</div>`;
     types.forEach(type=>{
       const sizes=Object.keys(gData[type]||{});
       if(!sizes.length) return;
+      // 가용 수량 계산 (사용감 우선 표시)
       html+=`<div style="margin-bottom:6px">
         <div style="font-size:11px;font-weight:700;color:${color};opacity:.8;
           border-left:2px solid ${color};padding-left:6px;margin-bottom:5px">${type}</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:5px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px">
           ${sizes.map(sz=>{
             const itemKey=`유니폼_${gender}_${type}_${sz}`;
             const safeKey=itemKey.replace(/[\s\/]/g,'_');
             const val=log?.items?.[itemKey]||0;
+            const v=gData[type][sz];
+            const nqty=typeof v==='object'?(v.new||0):(v||0);
+            const uqty=typeof v==='object'?(v.used||0):0;
+            const iss=getUnifIssuedMap()[gender]?.[type]?.[sz]||0;
+            const avail=nqty+uqty-iss;
+            const borderColor = avail<=0 ? 'rgba(239,68,68,.4)' : 'rgba(34,197,94,.3)';
             return `<div style="background:var(--surface2);border-radius:6px;padding:7px;text-align:center">
-              <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:3px;text-transform:uppercase">${sz}</div>
+              <div style="font-size:10px;font-weight:600;color:var(--text3);margin-bottom:2px;text-transform:uppercase">${sz}</div>
+              <div style="font-size:9px;margin-bottom:3px">
+                <span style="color:var(--green)">${nqty}</span>+<span style="color:var(--yellow)">${uqty}</span>
+                <span style="color:${avail<=0?'var(--red)':'var(--text3)'}"> 가용${avail}</span>
+              </div>
               <input class="fi" type="number" min="0" value="${val}"
-                id="st-qty-${safeKey}" style="width:100%;text-align:center;padding:3px">
+                id="st-qty-${safeKey}"
+                style="width:100%;text-align:center;padding:3px;border-color:${borderColor}">
             </div>`;
           }).join('')}
         </div>
@@ -5787,7 +6702,7 @@ function saveStIssue(){
   if(!issueDate){ toast('지급일을 입력하세요','⚠️'); return; }
   const newItems = {};
   // 유니폼 품목 수집
-  ['여자','남자'].forEach(gender=>{
+  ['여자','남자','크록스'].forEach(gender=>{
     Object.entries(unifStock[gender]||{}).forEach(([type,sizes])=>{
       Object.keys(sizes).forEach(sz=>{
         const itemKey=`유니폼_${gender}_${type}_${sz}`;
@@ -5804,7 +6719,48 @@ function saveStIssue(){
     if(qty>0) newItems[s.item]=qty;
   });
   if(!Object.keys(newItems).length){ toast('지급 품목을 입력하세요','⚠️'); return; }
+
+  // ── 재고 차감 (사용감 먼저)
   const editId = document.getElementById('st-log-id').value;
+  if(!editId){
+    // 신규 지급 시 재고 차감
+    Object.entries(newItems).forEach(([key,qty])=>{
+      if(key.startsWith('유니폼_')){
+        const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
+        if(p){ const[,g,t,sz]=p; unifDeduct(g,t,sz,qty); }
+      } else {
+        const sidx=staffStock.findIndex(s=>s.item===key);
+        if(sidx>-1) staffStock[sidx].qty=Math.max(0,(staffStock[sidx].qty||0)-qty);
+      }
+    });
+    saveUnifStock();
+  } else {
+    // 편집 시: 기존 차감 복구 후 재차감
+    const oldLog = staffLogs.find(l=>l.id===editId);
+    if(oldLog){
+      Object.entries(oldLog.items||{}).forEach(([key,qty])=>{
+        if(!qty) return;
+        if(key.startsWith('유니폼_')){
+          const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
+          if(p){ const[,g,t,sz]=p; unifRestore(g,t,sz,qty); }
+        } else {
+          const sidx=staffStock.findIndex(s=>s.item===key);
+          if(sidx>-1) staffStock[sidx].qty=(staffStock[sidx].qty||0)+qty;
+        }
+      });
+    }
+    Object.entries(newItems).forEach(([key,qty])=>{
+      if(key.startsWith('유니폼_')){
+        const p=key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
+        if(p){ const[,g,t,sz]=p; unifDeduct(g,t,sz,qty); }
+      } else {
+        const sidx=staffStock.findIndex(s=>s.item===key);
+        if(sidx>-1) staffStock[sidx].qty=Math.max(0,(staffStock[sidx].qty||0)-qty);
+      }
+    });
+    saveUnifStock();
+  }
+
   if(editId){
     const idx = staffLogs.findIndex(l=>l.id===editId);
     if(idx>-1){
@@ -5851,11 +6807,46 @@ function saveStReturn(){
   const logId = document.getElementById('str-log-id').value;
   const idx = staffLogs.findIndex(l=>l.id===logId);
   if(idx<0) return;
+
+  const log = staffLogs[idx];
+  const condition = document.getElementById('str-condition').value;
+
+  // ── 반납 시 재고 복구 ──
+  // 정상/일부파손: 사용감 수량으로 복구
+  // 분실: 복구 없음
+  if(condition !== '분실'){
+    Object.entries(log.items||{}).forEach(([key, qty])=>{
+      if(!qty) return;
+      if(key.startsWith('유니폼_')){
+        const p = key.match(/^유니폼_(.+?)_(.+?)_(.+)$/);
+        if(!p) return;
+        const [,g,t,sz] = p;
+        if(!unifStock[g]?.[t]) return;
+        const cur = unifStock[g][t][sz];
+        if(typeof cur === 'object'){
+          // 반납된 수량은 사용감으로 복구
+          unifStock[g][t][sz].used = (cur.used||0) + qty;
+        } else {
+          unifStock[g][t][sz] = (cur||0) + qty;
+        }
+      } else {
+        // 일반 품목 복구
+        const sidx = staffStock.findIndex(s=>s.item===key);
+        if(sidx>-1) staffStock[sidx].qty = (staffStock[sidx].qty||0) + qty;
+      }
+    });
+    saveUnifStock();
+  }
+
   staffLogs[idx].returnedAt = document.getElementById('str-date').value;
-  staffLogs[idx].returnCondition = document.getElementById('str-condition').value;
-  staffLogs[idx].note = (staffLogs[idx].note||'') + ' ' + document.getElementById('str-note').value;
-  saveStData(); closeM('st-return-modal'); renderSt();
-  toast(`${staffLogs[idx].staffName} 반납 완료`,'📥');
+  staffLogs[idx].returnCondition = condition;
+  staffLogs[idx].note = (staffLogs[idx].note||'') + (document.getElementById('str-note').value ? ' '+document.getElementById('str-note').value : '');
+
+  saveStData();
+  closeM('st-return-modal');
+  renderSt();
+  const condLabel = condition==='분실' ? '(분실 — 재고 복구 없음)' : '(사용감 재고로 복구됨)';
+  toast(`${log.staffName} 반납 완료 ${condLabel}`, '📥');
 }
 
 function openStStockEdit(item, current){
@@ -6246,6 +7237,12 @@ function clearGlobalSearch(){
     <div class="mbody">
       <input type="hidden" id="str-log-id">
       <div id="str-summary" style="background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+      <!-- 반납 상태별 재고 안내 -->
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8">
+        <div style="font-weight:700;margin-bottom:4px">📦 반납 상태별 재고 처리</div>
+        <div>✅ <b>정상</b> / 🔶 <b>일부 파손</b> → 지급 수량이 <b style="color:var(--yellow)">사용감</b> 재고로 복구</div>
+        <div>❌ <b>분실</b> → 재고 복구 없음 (소실 처리)</div>
+      </div>
       <div class="fg"><label class="fl">반납일 *</label><input class="fi" type="date" id="str-date"></div>
       <div class="fg"><label class="fl">반납 상태</label>
         <select class="fse" id="str-condition">

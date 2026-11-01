@@ -26,6 +26,7 @@
   --c0:#6CC2A7; --c0s:#1D3830; --c1:#8DB5DD; --c1s:#1E2C3A; --c2:#D6A472; --c2s:#382A1D;
   --c3:#C49BD6; --c3s:#2E2236; --c4:#E59AAB; --c4s:#3A2228; --c5:#B5C47A; --c5s:#2A2F1B; color-scheme:dark;}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
@@ -519,11 +520,11 @@ function render(){if(!S)return;
 function activityRow(a){const it=itemById(a.itemId)||{name:'(삭제된 품목)',unit:''};
   if(a.k==='buy'){const p=a.p,v=vendorById(p.vendorId),pp=prevPrice(p);
     return `<button class="row tap" data-edit="${p.id}"><div class="act-ic buy">＋</div>
-      <div class="main"><div class="t">${esc(it.name)} <b class="num">${fmt1(p.qty)}${esc(it.unit)}</b> 구매</div>
+      <div class="main"><div class="t">${esc(it.name)} <b><span class="num">${fmt1(p.qty)}</span>${esc(it.unit)}</b> 구매</div>
       <div class="s">${dKo(p.date)}${v?' · '+esc(v.name):''}${p.legacyId?' · 예전 기록':''}${hasNum(p.price)&&pp&&pp!==p.price?` · <span style="color:var(--warn)">단가 ${p.price>pp?'인상':'인하'}</span>`:''}</div></div>
       <div class="r">${hasNum(p.price)?`<b class="num">${won(amt(p))}원</b>`:'<span class="chip mute">가격 없음</span>'}</div></button>`}
   const l=a.l;return `<button class="row tap" data-log="${l.id}"><div class="act-ic count">=</div>
-    <div class="main"><div class="t">${esc(it.name)} 재고 <b class="num">${fmt1(l.qty)}${esc(it.unit)}</b> 확인</div><div class="s">${dKo(l.date)}${l.memo?' · '+esc(l.memo):''}</div></div></button>`}
+    <div class="main"><div class="t">${esc(it.name)} 재고 <b><span class="num">${fmt1(l.qty)}</span>${esc(it.unit)}</b> 확인</div><div class="s">${dKo(l.date)}${l.memo?' · '+esc(l.memo):''}</div></div></button>`}
 
 function vDash(){
   const ym=ymOf(today()),cur=spend(ym),bud=budgetOf(ym),pct=bud?cur/bud*100:0,low=active().filter(isLow),tg=Number(S.targets[ym])||0;

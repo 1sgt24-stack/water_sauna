@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>고성 로라 페이스메이커</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&family=Share+Tech+Mono&display=swap">
+<style>
+/* 영상이 화면 전체, 위에 사이클 컴퓨터 같은 상태판과 아래 코스 진행 막대 */
+:root{
+  color-scheme:dark;
+  --night:#071c24; --panel:rgba(7,28,36,.82); --line:rgba(220,239,233,.22);
+  --foam:#e6f3ef; --dim:#9db4b7; --buoy:#ff6f3c;
+  --ok:#3ddc97; --warn:#ffcf4a; --bad:#ff5a5a; --ghost:#f7f6ef;
+  --display:"Black Han Sans","Malgun Gothic",sans-serif;
+  --body:"IBM Plex Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --digit:"Share Tech Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--night);color:var(--foam);font-family:var(--body)}
+[hidden]{display:none!important}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+
+#stage{position:fixed;inset:0;background:#000}
+#stage iframe,#stage video{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:cover;pointer-events:none}
+#noVideo{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:15px;background:radial-gradient(circle at 70% 30%,#12485a,#071c24 70%)}
+
+#hud{position:fixed;inset:0;pointer-events:none;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;gap:10px}
+#top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+#left{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;backdrop-filter:blur(6px)}
+#statusPanel{min-width:250px;display:flex;flex-direction:column;gap:4px}
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-size:26px;line-height:1.1}
+.badge .mark{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;font-family:var(--body);font-weight:600;font-size:20px;color:#06221a}
+.ok{color:var(--ok)} .ok .mark{background:var(--ok)}
+.warn{color:var(--warn)} .warn .mark{background:var(--warn);color:#2c2300}
+.bad{color:var(--bad)} .bad .mark{background:var(--bad);color:#2a0606}
+.idle{color:var(--dim)} .idle .mark{background:var(--dim)}
+#gap{font-family:var(--digit);font-size:54px;line-height:1;font-variant-numeric:tabular-nums}
+#gapSub{font-size:14px;color:var(--dim)}
+.stats{display:grid;grid-template-columns:repeat(4,auto);gap:6px 22px;align-content:start}
+.stat small{display:block;font-size:12px;color:var(--dim)}
+.stat b{font-family:var(--digit);font-weight:400;font-size:28px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat b span{font-size:14px;color:var(--dim);margin-left:3px}
+#tools{display:flex;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end}
+.tool{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;white-space:nowrap}
+#srcChip{font-size:13px;color:var(--dim);text-align:right;margin-top:6px}
+
+#bottomBar{pointer-events:none}
+#track{position:relative;height:96px;margin:0 6px}
+#profileCv{position:absolute;left:0;top:56px;width:100%;height:38px}
+#gradeBtns{position:fixed;right:80px;bottom:160px;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+#gradeBtns button{height:54px;padding:0 12px;border-radius:27px;background:var(--panel);border:1px solid var(--line);font-size:14px;white-space:nowrap}
+.up{color:var(--bad)} .down{color:#6fc3ff}
+#rail{position:absolute;left:0;right:0;top:36px;height:8px;border-radius:4px;background:rgba(230,243,239,.25)}
+#railFill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--buoy);width:0}
+.cp{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px}
+.cp .sym{min-width:28px;height:28px;padding:0 6px;border-radius:14px;display:grid;place-items:center;font-size:13px;font-weight:600;background:rgba(7,28,36,.75);border:1px solid var(--line);font-family:var(--digit);white-space:nowrap}
+.cp.pass .sym{background:var(--ok);color:#06221a;border-color:transparent;font-family:var(--body)}
+.cp.late .sym{background:var(--bad);color:#fff;border-color:transparent}
+.cp .tick{width:2px;height:12px;background:rgba(230,243,239,.6)}
+.dot{position:absolute;top:30px;width:20px;height:20px;margin-left:-10px;border-radius:50%;border:3px solid #fff;transition:left .2s linear}
+#meDot{background:var(--buoy);z-index:2}
+#ghostDot{background:transparent;border-color:var(--ghost);border-style:dashed;z-index:1}
+#legend{display:flex;gap:16px;justify-content:flex-end;font-size:12px;color:var(--dim);margin:2px 6px 0}
+
+#manual{position:fixed;right:16px;bottom:160px;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
+#manual button{width:54px;height:54px;border-radius:50%;background:var(--panel);border:1px solid var(--line);font-size:22px}
+
+#startCall{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:10px}
+.go{background:var(--buoy);color:#fff;border:0;border-radius:10px;padding:14px 28px;font-family:var(--display);font-size:26px}
+#startCall p{margin:0;background:var(--panel);padding:6px 12px;border-radius:8px;font-size:14px}
+#toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-family:var(--display);font-size:32px;text-shadow:0 2px 12px #000;pointer-events:none;text-align:center}
+
+.sheet{position:fixed;inset:0;overflow:auto;padding:20px 16px;background:linear-gradient(90deg,rgba(7,28,36,.92) 0,rgba(7,28,36,.75) 560px,rgba(7,28,36,.25))}
+.card{width:min(560px,100%);display:flex;flex-direction:column;gap:18px}
+h1,h2{margin:0;font-family:var(--display);font-weight:400;line-height:1.1}
+h1{font-size:36px}h2{font-size:30px}
+h3{margin:0 0 8px;font-size:15px;font-weight:600;color:var(--buoy)}
+.lead,.note{margin:0;line-height:1.55}
+.lead{font-size:14px}
+.note{font-size:12.5px;color:var(--dim)}
+fieldset{border:0;border-top:1px solid var(--line);padding:14px 0 0;margin:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>input[type=text]{flex:1 1 240px;min-width:0}
+input[type=text],input[type=number]{background:rgba(230,243,239,.08);border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+input[type=number]{width:110px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--dim)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg label{display:flex;cursor:pointer}
+.seg input{position:absolute;opacity:0}
+.seg span{flex:1;text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 4px;font-size:12.5px;line-height:1.35}
+.seg strong{display:block;font-family:var(--digit);font-weight:400;font-size:19px}
+.seg input:checked+span{background:var(--foam);color:var(--night);border-color:var(--foam)}
+.seg input:focus-visible+span{outline:3px solid var(--warn)}
+.btn{background:transparent;border:1px solid var(--foam);border-radius:8px;padding:9px 14px;font-size:14px;font-weight:600}
+.state{font-size:13px;color:var(--dim)}
+.state.okTxt{color:var(--ok)} .state.badTxt{color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--digit);font-weight:400}
+th{font-family:var(--body);font-size:12px;color:var(--dim)}
+th:first-child,td:first-child{text-align:left}
+.bigTime{font-family:var(--digit);font-size:60px;line-height:1}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,auto)}#gap{font-size:40px}.stat b{font-size:22px}.seg{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="stage"><div id="ytHost"></div><video id="vid" playsinline preload="auto" hidden></video><div id="noVideo">영상을 불러오면 여기에 나와요</div></div>
+
+<div id="hud" hidden>
+  <div id="top">
+    <div id="left">
+      <div class="panel" id="statusPanel">
+        <div id="badge" class="badge idle"><span class="mark">·</span><span id="badgeTxt">출발 준비</span></div>
+        <div id="gap">0:00</div>
+        <div id="gapSub">목표 페이스와 같은 위치예요</div>
+      </div>
+      <div class="panel stats">
+        <div class="stat"><small>지금 속도</small><b id="sSpeed">0.0<span>km/h</span></b></div>
+        <div class="stat"><small>필요 평속</small><b id="sNeed">--<span>km/h</span></b></div>
+        <div class="stat"><small>파워</small><b id="sPower">--<span>W</span></b></div>
+        <div class="stat"><small>경사</small><b id="sGrade">0.0<span>%</span></b></div>
+        <div class="stat"><small>거리</small><b id="sKm">0.0<span>km</span></b></div>
+        <div class="stat"><small>라이드 시간</small><b id="sClock">0:00:00</b></div>
+        <div class="stat"><small>목표 기록</small><b id="sTarget">2:22:00</b></div>
+        <div class="stat"><small>로라 저항</small><b id="sRes">꺼짐</b></div>
+      </div>
+    </div>
+    <div>
+      <div id="tools">
+        <button class="tool" id="bPause" type="button">일시정지</button>
+        <button class="tool" id="bSetup" type="button">설정</button>
+        <button class="tool" id="bFull" type="button">전체 화면</button>
+      </div>
+      <div id="srcChip"></div>
+    </div>
+  </div>
+  <div id="bottomBar" class="panel">
+    <div id="track"><div id="rail"><div id="railFill"></div></div><div id="ghostDot" class="dot"></div><div id="meDot" class="dot"></div><canvas id="profileCv"></canvas></div>
+    <div id="legend"><span>● 나</span><span>◌ 목표 페이스</span><span>✓ 목표보다 앞서 통과</span></div>
+  </div>
+</div>
+
+<div id="manual" hidden><button id="mUp" type="button" aria-label="속도 올리기">＋</button><button id="mDown" type="button" aria-label="속도 내리기">－</button></div>
+<div id="gradeBtns" hidden><button id="gUp" type="button">경사 ＋0.5</button><button id="gDown" type="button">경사 －0.5</button></div>
+<div id="startCall" hidden><button class="go" id="bGo" type="button">출발</button><p>Space를 눌러도 출발해요</p></div>
+<div id="toast" role="status"></div>
+
+<section class="sheet" id="setup">
+  <div class="card">
+    <div><h1>고성 로라 페이스메이커</h1></div>
+    <p class="lead">실제 코스 영상을 틀어 놓고 로라를 타면, 목표 기록과 비교해 지금 앞서는지 뒤처지는지 보여줘요. 내 속도에 맞춰 영상도 빨라지고 느려져요.</p>
+
+    <fieldset>
+      <h3>1. 코스 영상</h3>
+      <div class="row"><input type="text" id="ytUrl" aria-label="유튜브 주소" value="https://youtu.be/jwoMbm94ctw"><button class="btn" id="bYT" type="button">유튜브 불러오기</button></div>
+      <div class="row"><label class="btn" for="fileIn">PC 영상 파일 고르기</label><input type="file" id="fileIn" accept="video/*" hidden></div>
+      <div class="state" id="vidState">아직 영상을 불러오지 않았어요.</div>
+    </fieldset>
+
+    <fieldset>
+      <h3>2. 목표 바이크 기록</h3>
+      <div class="seg">
+        <label><input type="radio" name="tg" value="8100"><span><strong>2:15</strong>자전거 강점</span></label>
+        <label><input type="radio" name="tg" value="8520" checked><span><strong>2:22</strong>균형</span></label>
+        <label><input type="radio" name="tg" value="8880"><span><strong>2:28</strong>달리기 강점</span></label>
+        <label><input type="radio" name="tg" value="custom"><span><strong>직접</strong>입력</span></label>
+      </div>
+      <div class="row" id="customRow" hidden><label class="f">목표 시간 (시:분)<input type="text" id="customT" value="2:30"></label></div>
+      <div class="row"><label class="f">라이드 거리 (km)<input type="number" id="courseKm" value="90" min="1" step="0.1"></label></div>
+    </fieldset>
+
+    <fieldset>
+      <h3>3. 영상과 거리 맞추기</h3>
+      <div class="row">
+        <label class="f">영상이 담은 거리 (km)<input type="number" id="videoKm" value="90" min="0.1" step="0.1"></label>
+        <label class="f">시작 지점 (분:초)<input type="text" id="vStart" value="0:00"></label>
+        <label class="f">끝 지점 (비우면 영상 끝)<input type="text" id="vEnd" value=""></label>
+      </div>
+      <p class="note">영상 속 라이더가 고른 속도로 달렸다고 보고, 영상 시간을 거리로 나눠 맞춰요. 영상 앞뒤에 인트로가 있으면 시작·끝 지점에서 빼 주세요.</p>
+    </fieldset>
+
+    <fieldset>
+      <h3>4. 내 속도 받기</h3>
+      <div class="row"><button class="btn" id="bBLE" type="button">블루투스 센서 연결</button><span class="state" id="bleState">스마트 로라, 파워미터, 속도 센서를 쓸 수 있어요.</span></div>
+      <div class="row">
+        <label class="f">바퀴 둘레 (mm)<input type="number" id="circ" value="2105" step="1"></label>
+        <label class="f">체중+자전거 (kg)<input type="number" id="mass" value="80" step="1"></label>
+      </div>
+      <p class="note">센서가 없으면 키보드 ↑ ↓ 또는 화면의 ＋ － 버튼으로 속도를 직접 맞춰요. 파워미터만 있으면 파워와 체중으로 평지 속도를 계산해요.</p>
+    </fieldset>
+
+    <fieldset>
+      <h3>5. 언덕 저항 (스마트 로라)</h3>
+      <div class="row"><label class="btn" for="gpxIn">코스 GPX 파일 고르기</label><input type="file" id="gpxIn" accept=".gpx,application/gpx+xml" hidden><button class="btn" id="gpxClear" type="button">GPX 지우기</button></div>
+      <div class="state" id="gpxState">GPX가 없으면 평지(0%)로 달려요.</div>
+      <div class="seg">
+        <label><input type="radio" name="df" value="0.25"><span><strong>25%</strong>가볍게</span></label>
+        <label><input type="radio" name="df" value="0.5" checked><span><strong>50%</strong>기본</span></label>
+        <label><input type="radio" name="df" value="0.75"><span><strong>75%</strong>무겁게</span></label>
+        <label><input type="radio" name="df" value="1"><span><strong>100%</strong>실제 경사</span></label>
+      </div>
+      <p class="note">스마트 로라를 연결하면 코스 경사에 이 비율을 곱해 저항을 바꿔요. 50%면 6% 언덕이 3%처럼 느껴져요. 달리는 중에 [ ] 키나 화면 버튼으로 경사를 0.5%씩 더하거나 뺄 수 있어요.</p>
+    </fieldset>
+
+    <button class="go" id="bReady" type="button">준비 완료</button>
+  </div>
+</section>
+
+<section class="sheet" id="pauseS" hidden>
+  <div class="card"><h2>잠시 쉬는 중</h2><p class="lead">라이드 시간이 멈춰 있어요.</p><div class="row"><button class="go" id="bResume" type="button">계속 달리기</button><button class="btn" id="bStop" type="button">여기서 끝내기</button></div></div>
+</section>
+
+<section class="sheet" id="resultS" hidden>
+  <div class="card">
+    <h2 id="rTitle">라이드 완료</h2>
+    <div><div class="bigTime" id="rTime">0:00:00</div><div id="rDelta" class="lead"></div></div>
+    <table><thead><tr><th>구간</th><th>통과 시간</th><th>목표 대비</th><th>구간 평속</th></tr></thead><tbody id="rBody"></tbody></table>
+    <div class="row"><button class="go" id="bAgain" type="button">다시 타기</button><button class="btn" id="bBack" type="button">설정으로</button></div>
+  </div>
+</section>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/3600)+':'+String(Math.floor(s/60)%60).padStart(2,'0')+':'+String(s%60).padStart(2,'0');};
+const fmtMS=s=>{const n=Math.round(Math.abs(s));return (n>=3600?Math.floor(n/3600)+':'+String(Math.floor(n/60)%60).padStart(2,'0'):Math.floor(n/60))+':'+String(n%60).padStart(2,'0');};
+const parseClock=t=>{if(!t||!t.trim())return 0;const p=t.trim().split(':').map(Number);if(p.some(isNaN))return NaN;return p.reduce((a,b)=>a*60+b,0);};
+const store={get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+
+/* ---------- 설정 ---------- */
+const S={target:8520,courseKm:90,videoKm:90,vStart:0,vEnd:0,circ:2105,mass:80,diff:.5};
+const saved=store.get('goseong-roller');
+if(saved){
+  ['ytUrl','courseKm','videoKm','vStart','vEnd','circ','mass','customT'].forEach(k=>{if(saved[k]!=null&&$(k))$(k).value=saved[k];});
+  const r=document.querySelector('input[name=tg][value="'+saved.tg+'"]'); if(r) r.checked=true;
+  const d=document.querySelector('input[name=df][value="'+saved.df+'"]'); if(d) d.checked=true;
+}
+$('customRow').hidden=document.querySelector('input[name=tg]:checked').value!=='custom';
+document.querySelectorAll('input[name=tg]').forEach(r=>r.addEventListener('change',()=>{$('customRow').hidden=r.value!=='custom'||!r.checked;}));
+function readSettings(){
+  const tg=document.querySelector('input[name=tg]:checked').value;
+  const target=tg==='custom'?parseClock($('customT').value)*60:+tg;
+  const vs=parseClock($('vStart').value), ve=parseClock($('vEnd').value);
+  if(!(target>0)) return '목표 시간을 2:30처럼 시:분으로 적어 주세요.';
+  if(isNaN(vs)||isNaN(ve)) return '시작·끝 지점은 12:30처럼 분:초로 적어 주세요.';
+  Object.assign(S,{target,courseKm:+$('courseKm').value||90,videoKm:+$('videoKm').value||90,vStart:vs,vEnd:ve,circ:+$('circ').value||2105,mass:+$('mass').value||80,diff:+document.querySelector('input[name=df]:checked').value});
+  store.set('goseong-roller',{tg,df:document.querySelector('input[name=df]:checked').value,ytUrl:$('ytUrl').value,courseKm:$('courseKm').value,videoKm:$('videoKm').value,vStart:$('vStart').value,vEnd:$('vEnd').value,circ:$('circ').value,mass:$('mass').value,customT:$('customT').value});
+  return null;
+}
+
+/* ---------- 영상 ---------- */
+let V=null, ytPlayer=null;
+function vidState(t,cls){const el=$('vidState');el.textContent=t;el.className='state '+(cls||'');}
+function destroyVideo(){
+  if(ytPlayer){try{ytPlayer.destroy();}catch(e){} ytPlayer=null;}
+  $('ytHost').innerHTML='<div id="yt"></div>';
+  const v=$('vid'); v.pause(); v.removeAttribute('src'); v.hidden=true; V=null; $('noVideo').hidden=false;
+}
+$('fileIn').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  destroyVideo();
+  const v=$('vid'); v.src=URL.createObjectURL(f); v.hidden=false; $('noVideo').hidden=true;
+  v.onloadedmetadata=()=>vidState('영상 파일을 불러왔어요: '+f.name+' ('+fmt(v.duration)+')','okTxt');
+  v.onerror=()=>vidState('이 영상 파일은 브라우저에서 재생할 수 없어요. mp4 파일을 써 주세요.','badTxt');
+  V={kind:'file',ready:()=>v.readyState>=1,t:()=>v.currentTime,dur:()=>v.duration||0,
+     play:()=>{if(v.paused)v.play().catch(()=>{});},pause:()=>{if(!v.paused)v.pause();},
+     rate:r=>{if(Math.abs(v.playbackRate-r)>.005)v.playbackRate=r;},rates:null,seek:t=>{v.currentTime=t;}};
+});
+function ytId(u){const m=String(u).match(/(?:youtu\.be\/|[?&]v=|embed\/|shorts\/|live\/)([\w-]{11})/);return m?m[1]:(/^[\w-]{11}$/.test(u.trim())?u.trim():null);}
+function loadYTApi(){
+  return new Promise((res,rej)=>{
+    if(window.YT&&YT.Player) return res();
+    const prev=window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady=()=>{if(prev)prev();res();};
+    const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; s.onerror=()=>rej(); document.head.appendChild(s);
+    setTimeout(()=>rej(),12000);
+  });
+}
+$('bYT').onclick=async()=>{
+  const id=ytId($('ytUrl').value);
+  if(!id){vidState('유튜브 주소를 확인해 주세요.','badTxt');return;}
+  vidState('유튜브 영상을 불러오는 중이에요…');
+  try{await loadYTApi();}catch(e){vidState(/claude\.ai|claudeusercontent|claude\.site/.test(location.hostname+document.referrer)?'이 미리보기 화면에서는 유튜브를 불러올 수 없어요. GitHub에 올린 주소로 열어 주세요.':'유튜브를 불러오지 못했어요. 인터넷 연결을 확인하거나, 광고 차단 앱이 켜져 있다면 잠시 꺼 주세요.','badTxt');return;}
+  destroyVideo(); $('noVideo').hidden=true;
+  let ready=false;
+  ytPlayer=new YT.Player('yt',{videoId:id,width:'100%',height:'100%',
+    playerVars:{controls:0,rel:0,playsinline:1,disablekb:1,iv_load_policy:3,fs:0},
+    events:{
+      onReady:()=>{ready=true;ytPlayer.mute&&ytPlayer.unMute();const d=ytPlayer.getDuration();vidState('유튜브 영상을 불러왔어요'+(d?' ('+fmt(d)+')':'')+'.','okTxt');},
+      onError:e=>{
+        const fileMode=location.protocol==='file:';
+        vidState((e.data===101||e.data===150||e.data===153||fileMode)
+          ?'유튜브가 이 화면에서의 재생을 막았어요. '+(fileMode?'파일을 직접 열면 생기는 문제라, GitHub Pages 같은 웹 주소에 올려서 열거나 PC 영상 파일을 써 주세요.':'영상 주인이 외부 재생을 막아 둔 영상일 수 있어요.')
+          :'유튜브 영상을 재생하지 못했어요 (오류 '+e.data+').','badTxt');
+      }
+    }});
+  V={kind:'yt',ready:()=>ready,t:()=>ytPlayer.getCurrentTime()||0,dur:()=>ytPlayer.getDuration()||0,
+     play:()=>{const s=ytPlayer.getPlayerState();if(s!==1&&s!==3)ytPlayer.playVideo();},
+     pause:()=>{if(ytPlayer.getPlayerState()===1)ytPlayer.pauseVideo();},
+     rate:r=>{if(ytPlayer.getPlaybackRate()!==r)ytPlayer.setPlaybackRate(r);},
+     rates:()=>ytPlayer.getAvailablePlaybackRates(),seek:t=>ytPlayer.seekTo(t,true)};
+};
+if(location.protocol==='file:') vidState('파일을 직접 열면 유튜브가 재생을 막을 수 있어요. 그럴 땐 PC 영상 파일을 고르거나, 이 파일을 웹 주소(GitHub Pages)에 올려서 여세요.');
+
+function videoSpan(){
+  const d=V&&V.ready()?V.dur():0; if(!d) return null;
+  const s=clamp(S.vStart,0,d), e=S.vEnd>s?Math.min(S.vEnd,d):d;
+  return e-s>1?{s,e}:null;
+}
+function syncVideo(){
+  if(!V) return; const sp=videoSpan(); if(!sp) return;
+  const span=sp.e-sp.s, frac=clamp(R.km/S.videoKm,0,1), tgt=sp.s+frac*span;
+  if(state!=='ride'||R.speed<1||frac>=1){V.pause();return;}
+  const vt=V.t(), diff=tgt-vt;
+  if(Math.abs(diff)>20){V.seek(tgt);return;}
+  if(diff<-1.5){V.pause();return;}
+  const videoAvg=S.videoKm/(span/3600);
+  let want=R.speed/videoAvg*(1+clamp(diff/10,-.5,.8));
+  const rates=V.rates?V.rates():null;
+  if(rates&&rates.length) want=rates.reduce((a,b)=>Math.abs(b-want)<Math.abs(a-want)?b:a);
+  else want=clamp(want,.0625,8);
+  V.rate(want); V.play();
+}
+
+/* ---------- 센서 ---------- */
+const sensor={on:false,kind:'',speed:0,at:0,hasWheel:false,wheel:null};
+function bleState(t,cls){const el=$('bleState');el.textContent=t;el.className='state '+(cls||'');}
+function setSensorSpeed(v){sensor.speed=v;sensor.at=performance.now();}
+function wheelUpdate(revs,t,res){
+  const now=performance.now(), w=sensor.wheel;
+  if(w){
+    let dr=revs-w.revs, dt=t-w.t; if(dt<0)dt+=65536;
+    if(dr>0&&dt>0){setSensorSpeed(dr*S.circ/1000/(dt/res)*3.6);w.moved=now;}
+    else if(now-w.moved>2500) setSensorSpeed(0);
+  }
+  sensor.wheel={revs,t,moved:w?w.moved:now};
+}
+function parseFTMS(dv){
+  const f=dv.getUint16(0,true); let o=2;
+  if(!(f&1)){setSensorSpeed(dv.getUint16(o,true)/100);o+=2;}
+  if(f&2)o+=2; if(f&4)o+=2; if(f&8)o+=2; if(f&16)o+=3; if(f&32)o+=2;
+  if(f&64&&dv.byteLength>=o+2) R.power=dv.getInt16(o,true);
+}
+function parseCSC(dv){const f=dv.getUint8(0);if(f&1)wheelUpdate(dv.getUint32(1,true),dv.getUint16(5,true),1024);}
+function powerToSpeed(p){
+  if(p<=0) return 0; const k=.6*0.27, c=.004*S.mass*9.81; let v=8;
+  for(let i=0;i<30;i++){v-=(k*v*v*v+c*v-p)/(3*k*v*v+c);} return Math.max(0,v*3.6);
+}
+function parseCP(dv){
+  const f=dv.getUint16(0,true), p=dv.getInt16(2,true); R.power=p; let o=4;
+  if(f&1)o+=1; if(f&4)o+=2;
+  if(f&16){sensor.hasWheel=true;wheelUpdate(dv.getUint32(o,true),dv.getUint16(o+4,true),2048);return;}
+  if(!sensor.hasWheel) setSensorSpeed(powerToSpeed(p));
+}
+$('bBLE').onclick=async()=>{
+  if(!navigator.bluetooth){bleState('이 브라우저는 블루투스 센서를 쓸 수 없어요. PC의 Chrome이나 Edge로 열어 주세요.','badTxt');return;}
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x1826]},{services:[0x1818]},{services:[0x1816]}],optionalServices:[0x1826,0x1818,0x1816]});
+    bleState(dev.name+'에 연결하는 중이에요…');
+    const srv=await dev.gatt.connect();
+    const list=[[0x1826,0x2ad2,parseFTMS,'스마트 로라'],[0x1818,0x2a63,parseCP,'파워미터'],[0x1816,0x2a5b,parseCSC,'속도 센서']];
+    for(const [svc,ch,fn,label] of list){
+      try{
+        const s=await srv.getPrimaryService(svc), c=await s.getCharacteristic(ch);
+        c.addEventListener('characteristicvaluechanged',e=>fn(e.target.value));
+        await c.startNotifications();
+        Object.assign(sensor,{on:true,kind:label,name:dev.name,hasWheel:false,wheel:null});
+        if(svc===0x1826) await setupControl(s);
+        bleState(label+' 연결됨: '+dev.name,'okTxt'); updateSrc(); break;
+      }catch(e){}
+    }
+    if(!sensor.on) bleState('연결은 됐지만 속도 정보를 받을 수 없는 기기예요.','badTxt');
+    dev.addEventListener('gattserverdisconnected',()=>{sensor.on=false;ftms.ok=false;ftms.cp=null;sensor.speed=0;bleState('센서 연결이 끊겼어요. 다시 연결해 주세요.','badTxt');toast('센서 연결이 끊겼어요');updateSrc();});
+  }catch(e){ if(e.name!=='NotFoundError') bleState('센서에 연결하지 못했어요: '+e.message,'badTxt'); }
+};
+
+
+/* ---------- 코스 경사 ---------- */
+const course={ele:null,step:.05,total:0,name:''};
+const savedCourse=store.get('goseong-roller-course'); if(savedCourse&&savedCourse.ele) Object.assign(course,savedCourse);
+function gpxState(t,cls){const el=$('gpxState');el.textContent=t;el.className='state '+(cls||'');}
+function hav(a,b){const Re=6371,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lon-a.lon)*r,x=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2;return 2*Re*Math.asin(Math.sqrt(x));}
+function loadGPX(text,name){
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length) return 'GPX 파일을 읽지 못했어요.';
+  const nodes=[...doc.getElementsByTagName('trkpt')]; if(!nodes.length) nodes.push(...doc.getElementsByTagName('rtept'));
+  const pts=nodes.map(p=>{const e=p.getElementsByTagName('ele')[0];return {lat:+p.getAttribute('lat'),lon:+p.getAttribute('lon'),ele:e?parseFloat(e.textContent):NaN};}).filter(p=>!isNaN(p.lat)&&!isNaN(p.lon));
+  if(pts.length<2) return '경로 점이 없는 GPX예요.';
+  const withEle=pts.filter(p=>!isNaN(p.ele));
+  if(withEle.length<pts.length*.5) return '고도 정보가 없는 GPX예요. 고도가 들어 있는 파일을 써 주세요.';
+  let last=withEle[0].ele; for(const p of pts){ if(isNaN(p.ele)) p.ele=last; else last=p.ele; }
+  const d=[0]; for(let i=1;i<pts.length;i++) d.push(d[i-1]+hav(pts[i-1],pts[i]));
+  const total=d[d.length-1]; if(total<.5) return '경로가 너무 짧아요.';
+  const step=.05, n=Math.floor(total/step)+1, raw=[]; let j=0;
+  for(let k=0;k<n;k++){ const x=k*step; while(j<d.length-2&&d[j+1]<x) j++; const t=d[j+1]>d[j]?(x-d[j])/(d[j+1]-d[j]):0; raw.push(pts[j].ele+(pts[j+1].ele-pts[j].ele)*clamp(t,0,1)); }
+  const ele=raw.map((_,i)=>{let s=0,c=0;for(let q=i-3;q<=i+3;q++){if(q>=0&&q<n){s+=raw[q];c++;}}return Math.round(s/c*10)/10;});
+  Object.assign(course,{ele,step,total,name});
+  store.set('goseong-roller-course',{ele,step,total,name});
+  return null;
+}
+function gradeAt(km){
+  if(!course.ele) return 0;
+  const n=course.ele.length, x=clamp(km/S.courseKm,0,1)*course.total, i=clamp(Math.round(x/course.step),0,n-1);
+  const a=clamp(i-2,0,n-1), b=clamp(i+2,0,n-1); if(b===a) return 0;
+  return clamp((course.ele[b]-course.ele[a])/((b-a)*course.step*1000)*100,-15,20);
+}
+function courseSummary(){let up=0;for(let i=1;i<course.ele.length;i++){const dd=course.ele[i]-course.ele[i-1];if(dd>0)up+=dd;}return course.name+' · '+course.total.toFixed(1)+' km · 누적 상승 약 '+Math.round(up)+' m';}
+if(course.ele) gpxState('코스 고도를 불러왔어요: '+courseSummary(),'okTxt');
+$('gpxIn').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const err=loadGPX(await f.text(),f.name);
+  if(err) gpxState(err,'badTxt'); else gpxState('코스 고도를 불러왔어요: '+courseSummary(),'okTxt');
+  e.target.value='';
+});
+$('gpxClear').onclick=()=>{course.ele=null;try{localStorage.removeItem('goseong-roller-course');}catch(e){}gpxState('GPX를 지웠어요. 평지(0%)로 달려요.');};
+function drawProfile(){
+  const cv=$('profileCv'), w=cv.clientWidth, h=cv.clientHeight; if(!w) return;
+  const dpr=window.devicePixelRatio||1; cv.width=w*dpr; cv.height=h*dpr;
+  const c=cv.getContext('2d'); c.scale(dpr,dpr); c.clearRect(0,0,w,h);
+  if(!course.ele){c.fillStyle='#9db4b7';c.font='12px "IBM Plex Sans KR",sans-serif';c.fillText('코스 GPX를 넣으면 고도 그래프와 언덕 저항이 켜져요',0,22);return;}
+  const e=course.ele, mn=Math.min(...e), mx=Math.max(...e), y=v=>h-2-(v-mn)/((mx-mn)||1)*(h-14);
+  c.fillStyle='rgba(61,220,151,.32)'; c.beginPath(); c.moveTo(0,h);
+  e.forEach((v,i)=>c.lineTo(i/(e.length-1)*w,y(v))); c.lineTo(w,h); c.closePath(); c.fill();
+  c.strokeStyle='rgba(61,220,151,.9)'; c.lineWidth=1.5; c.beginPath(); e.forEach((v,i)=>i?c.lineTo(i/(e.length-1)*w,y(v)):c.moveTo(0,y(v))); c.stroke();
+  c.fillStyle='#9db4b7'; c.font='11px "Share Tech Mono",monospace'; c.fillText('최고 '+Math.round(mx)+' m',4,10);
+}
+
+/* ---------- 스마트 로라 저항 (FTMS) ---------- */
+const ftms={cp:null,ok:false,queue:Promise.resolve(),lastSent:null,lastAt:0};
+function cpWrite(bytes){
+  const data=new Uint8Array(bytes), cp=ftms.cp; if(!cp) return Promise.resolve();
+  ftms.queue=ftms.queue.then(()=>cp.writeValueWithResponse?cp.writeValueWithResponse(data):cp.writeValue(data)).catch(()=>{});
+  return ftms.queue;
+}
+function sendGrade(g){const v=Math.round(clamp(g,-15,20)*100)&0xffff;return cpWrite([0x11,0,0,v&255,v>>8,40,51]);}
+async function setupControl(service){
+  try{
+    const cp=await service.getCharacteristic(0x2ad9);
+    cp.addEventListener('characteristicvaluechanged',e=>{
+      const v=e.target.value; if(v.byteLength<3||v.getUint8(0)!==0x80) return;
+      const op=v.getUint8(1), res=v.getUint8(2);
+      if(op===0x00&&res!==1){ftms.ok=false;bleState('로라가 저항 조절을 허락하지 않았어요. 다른 앱 연결을 끊고 다시 연결해 주세요.','badTxt');}
+    });
+    await cp.startNotifications();
+    ftms.cp=cp; await cpWrite([0x00]); await cpWrite([0x07]);
+    ftms.ok=true; ftms.lastSent=null;
+    bleState('스마트 로라 연결됨: '+sensor.name+' · 언덕 저항 사용 가능','okTxt');
+  }catch(e){ftms.ok=false;bleState('스마트 로라 연결됨: '+sensor.name+' · 저항 조절은 지원하지 않아요','okTxt');}
+}
+function nudge(d){R.offset=clamp(Math.round((R.offset+d)*2)/2,-10,10);toast('경사 보정 '+(R.offset>0?'+':'')+R.offset.toFixed(1)+'%');}
+function updateResistance(){
+  R.grade=gradeAt(R.km)+R.offset;
+  if(!ftms.ok) return;
+  const eff=state==='ride'?Math.round(R.grade*S.diff*10)/10:0, now=performance.now();
+  if(ftms.lastSent===null||(Math.abs(eff-ftms.lastSent)>=0.1&&now-ftms.lastAt>1500)||now-ftms.lastAt>15000){
+    sendGrade(eff); ftms.lastSent=eff; ftms.lastAt=now;
+  }
+}
+
+/* ---------- 라이드 ---------- */
+let state='setup';
+const R={clock:0,km:0,speed:0,manual:30,power:null,cps:[],last:0,grade:0,offset:0};
+let cps=[];
+function updateSrc(){
+  $('srcChip').textContent=sensor.on?sensor.kind+' · '+sensor.name:'직접 입력 · ↑ ↓ 키로 속도 조절';
+  $('manual').hidden=sensor.on||state==='setup'||state==='done';
+}
+function buildTrack(){
+  document.querySelectorAll('.cp').forEach(e=>e.remove());
+  cps=[]; for(let k=10;k<S.courseKm-2;k+=10) cps.push(k); cps.push(S.courseKm);
+  cps=cps.map(k=>({km:k,done:false,gap:0,time:0}));
+  for(const c of cps){
+    const el=document.createElement('div'); el.className='cp'; el.style.left=(c.km/S.courseKm*100)+'%';
+    el.innerHTML='<div class="sym">'+(Math.round(c.km*10)/10)+'</div><div class="tick"></div>'; c.el=el; $('track').appendChild(el);
+  }
+}
+function prepare(){
+  const err=readSettings(); if(err){vidState(err,'badTxt');return;}
+  Object.assign(R,{clock:0,km:0,speed:0,power:null,offset:0});
+  buildTrack(); state='ready';
+  $('setup').hidden=true; $('resultS').hidden=true; $('hud').hidden=false; $('startCall').hidden=false;
+  $('sTarget').textContent=fmt(S.target);
+  if(V&&V.ready()){const sp=videoSpan(); if(sp) V.seek(sp.s); V.pause();}
+  updateSrc(); hud(); drawProfile();
+}
+function go(){ if(state!=='ready') return; state='ride'; $('startCall').hidden=true; R.last=performance.now(); toast('출발!'); requestWake(); }
+function pause(){ if(state!=='ride') return; state='pause'; $('pauseS').hidden=false; V&&V.pause(); }
+function resume(){ if(state!=='pause') return; state='ride'; $('pauseS').hidden=true; R.last=performance.now(); }
+function finish(){
+  state='done'; V&&V.pause(); releaseWake(); if(ftms.ok){sendGrade(0);ftms.lastSent=0;} clearTimeout(toast.h); $('toast').textContent='';
+  $('hud').hidden=true; $('manual').hidden=true; $('pauseS').hidden=true;
+  const done=R.km>=S.courseKm-0.001, diff=R.clock-S.target*(Math.min(R.km,S.courseKm)/S.courseKm);
+  $('rTitle').textContent=done?(diff<=0?'목표 안에 들어왔어요 ✓':'라이드 완료'):'중간에 끝낸 라이드';
+  $('rTime').textContent=fmt(R.clock);
+  $('rDelta').textContent=(done?'목표 '+fmt(S.target)+' 대비 ':Math.min(R.km,S.courseKm).toFixed(1)+' km 지점 기준 목표보다 ')+fmtMS(diff)+(diff<=0?' 빨라요':' 늦어요')+' · 평균 '+(R.clock>0?(R.km/(R.clock/3600)).toFixed(1):'0')+' km/h';
+  const body=$('rBody'); body.textContent=''; let pk=0,pt=0;
+  for(const c of cps.filter(c=>c.done)){
+    const tr=document.createElement('tr');
+    [(pk)+'–'+(Math.round(c.km*10)/10)+' km',fmt(c.time),(c.gap<=0?'✓ −':'+')+fmtMS(c.gap),((c.km-pk)/((c.time-pt)/3600)).toFixed(1)+' km/h'].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
+    body.appendChild(tr); pk=Math.round(c.km*10)/10; pt=c.time;
+  }
+  $('resultS').hidden=false;
+}
+function tick(){
+  const now=performance.now();
+  if(sensor.on){ if(now-sensor.at>4000) sensor.speed=0; R.speed=sensor.speed; }
+  else R.speed=R.manual;
+  if(state==='ride'){
+    const dt=Math.min(1,(now-R.last)/1000); R.last=now;
+    R.clock+=dt; R.km+=R.speed*dt/3600;
+    for(const c of cps){
+      if(!c.done&&R.km>=c.km){
+        c.done=true; c.time=R.clock; c.gap=R.clock-S.target*c.km/S.courseKm;
+        c.el.classList.add(c.gap<=0?'pass':'late');
+        c.el.querySelector('.sym').textContent=c.gap<=0?'✓':'+'+fmtMS(c.gap);
+        toast(c.gap<=0?(Math.round(c.km)+' km 통과 ✓ 목표보다 '+fmtMS(c.gap)+' 빨라요'):(Math.round(c.km)+' km 통과 · 목표보다 '+fmtMS(c.gap)+' 늦어요'));
+      }
+    }
+    if(R.km>=S.courseKm){R.km=S.courseKm;finish();}
+  }
+}
+function hud(){
+  const ghostKm=Math.min(S.courseKm,R.clock/S.target*S.courseKm);
+  const gap=R.clock-R.km/S.courseKm*S.target;
+  const b=$('badge');
+  let cls,mark,txt;
+  if(state==='ready'||R.clock<5){cls='idle';mark='·';txt='출발 준비';}
+  else if(gap<=0){cls='ok';mark='✓';txt='목표 페이스';}
+  else if(gap<=60){cls='warn';mark='!';txt='조금 늦어요';}
+  else {cls='bad';mark='!';txt='따라잡아야 해요';}
+  b.className='badge '+cls; b.querySelector('.mark').textContent=mark; $('badgeTxt').textContent=txt;
+  $('gap').textContent=(gap<=0?'−':'+')+fmtMS(gap);
+  const dkm=R.km-ghostKm;
+  $('gapSub').textContent=R.clock<5?'목표 페이스와 같은 위치예요':('목표보다 '+fmtMS(gap)+(gap<=0?' 빠름':' 늦음')+' · '+Math.abs(dkm).toFixed(2)+' km '+(dkm>=0?'앞':'뒤'));
+  $('sSpeed').firstChild.nodeValue=R.speed.toFixed(1);
+  const remKm=S.courseKm-R.km, remT=S.target-R.clock;
+  $('sNeed').firstChild.nodeValue=remKm<=0?'--':(remT>0?(remKm/(remT/3600)).toFixed(1):'초과');
+  $('sPower').firstChild.nodeValue=R.power==null?'--':Math.round(R.power);
+  $('sKm').firstChild.nodeValue=R.km.toFixed(1);
+  $('sGrade').firstChild.nodeValue=(R.grade>0.05?'+':'')+R.grade.toFixed(1);
+  $('sGrade').className=R.grade>=1?'up':(R.grade<=-1?'down':'');
+  $('sRes').textContent=ftms.ok?Math.round(S.diff*100)+'% 반영':'꺼짐';
+  $('gradeBtns').hidden=!(ftms.ok&&(state==='ride'||state==='ready'));
+  $('sClock').textContent=fmt(R.clock);
+  $('meDot').style.left=(R.km/S.courseKm*100)+'%';
+  $('ghostDot').style.left=(ghostKm/S.courseKm*100)+'%';
+  $('railFill').style.width=(R.km/S.courseKm*100)+'%';
+}
+function toast(t){const el=$('toast');el.textContent=t;clearTimeout(toast.h);toast.h=setTimeout(()=>{el.textContent='';},3000);}
+let wake=null;
+async function requestWake(){try{wake=await navigator.wakeLock.request('screen');}catch(e){}}
+function releaseWake(){try{wake&&wake.release();}catch(e){}wake=null;}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state==='ride')requestWake();});
+
+/* ---------- 조작 ---------- */
+const adj=d=>{if(sensor.on)return;R.manual=clamp(Math.round((R.manual+d)*2)/2,0,60);};
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='ArrowUp'){e.preventDefault();adj(e.shiftKey?5:1);}
+  else if(e.key==='ArrowDown'){e.preventDefault();adj(e.shiftKey?-5:-1);}
+  else if(e.key===' '){e.preventDefault();if(state==='ready')go();else if(state==='ride')pause();else if(state==='pause')resume();}
+  else if(e.key===']'||e.key==='PageUp'){e.preventDefault();nudge(.5);}
+  else if(e.key==='['||e.key==='PageDown'){e.preventDefault();nudge(-.5);}
+  else if(e.key==='p'||e.key==='P'){if(state==='ride')pause();else if(state==='pause')resume();}
+});
+$('gUp').onclick=()=>nudge(.5); $('gDown').onclick=()=>nudge(-.5);
+$('mUp').onclick=()=>adj(1); $('mDown').onclick=()=>adj(-1);
+$('bReady').onclick=prepare; $('bGo').onclick=go;
+$('bPause').onclick=pause; $('bResume').onclick=resume; $('bStop').onclick=finish;
+$('bSetup').onclick=()=>{if(state==='ride')pause();$('pauseS').hidden=true;state='setup';$('hud').hidden=true;$('startCall').hidden=true;$('setup').hidden=false;updateSrc();V&&V.pause();};
+$('bAgain').onclick=prepare; $('bBack').onclick=()=>{state='setup';$('resultS').hidden=true;$('setup').hidden=false;};
+$('bFull').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await document.documentElement.requestFullscreen();}catch(e){toast('전체 화면을 쓸 수 없어요');}};
+
+setInterval(()=>{tick();if(state!=='setup')hud();},200);
+setInterval(syncVideo,250);
+setInterval(updateResistance,500);
+addEventListener('resize',()=>{if(state!=='setup')drawProfile();});
+window.__roller={R,S,sensor,course,ftms,loadGPX,gradeAt,setupControl,sendGrade,updateResistance,get state(){return state;}};
+})();
+</script>
+</body>
+</html>

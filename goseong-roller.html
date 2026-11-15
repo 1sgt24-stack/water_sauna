@@ -104,6 +104,34 @@ th{font-family:var(--body);font-size:12px;color:var(--dim)}
 th:first-child,td:first-child{text-align:left}
 .bigTime{font-family:var(--digit);font-size:60px;line-height:1}
 @media (max-width:760px){.stats{grid-template-columns:repeat(2,auto)}#gap{font-size:40px}.stat b{font-size:22px}.seg{grid-template-columns:repeat(2,1fr)}}
+/* 휴대폰 세로: 영상은 위, 상태판은 영상 아래 */
+@media (orientation:portrait) and (max-width:820px){
+  #stage{inset:0 0 auto 0;height:56.25vw}
+  #hud{top:56.25vw;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));gap:8px}
+  #top{flex-direction:column-reverse;align-items:stretch;gap:8px}
+  #left{flex-direction:column;gap:8px}
+  #statusPanel{min-width:0;flex-direction:row;flex-wrap:wrap;align-items:baseline;justify-content:space-between;column-gap:12px;padding:10px 14px}
+  .badge{font-size:22px}.badge .mark{width:28px;height:28px;font-size:16px}
+  #gap{font-size:40px}
+  #gapSub{flex-basis:100%;font-size:13px}
+  .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 10px;padding:10px 12px}
+  .stat small{font-size:11px}
+  .stat b{font-size:19px}.stat b span{font-size:11px;margin-left:1px}
+  #tools{justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto}
+  .tool{padding:7px 10px;font-size:13px}
+  #srcChip{display:none}
+  #track{height:90px}
+  .cp .sym{min-width:22px;height:22px;padding:0 3px;font-size:11px}
+  #legend{gap:10px;font-size:11px;flex-wrap:wrap}
+  #manual,#gradeBtns{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  #manual{flex-direction:row}
+  #manual button{width:48px;height:48px}
+  #gradeBtns{right:auto;left:16px;flex-direction:row}
+  #gradeBtns button{height:48px}
+  #toast{top:calc(56.25vw - 50px);font-size:22px;width:90%}
+  #startCall{top:auto;bottom:calc(240px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+  #startCall p{display:none}
+}
 </style>
 </head>
 <body>

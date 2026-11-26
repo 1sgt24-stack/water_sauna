@@ -249,9 +249,7 @@
   <section id="tab-input" class="hidden">
     <div class="seg" id="formSeg" style="margin-top:12px">
       <button data-f="buy" class="on">구매·입고</button>
-      <button data-f="damage">파손·수리</button>
       <button data-f="dispose">폐기</button>
-      <button data-f="inspect">점검</button>
       <button data-f="adjust">재고 실사</button>
     </div>
 
@@ -274,28 +272,6 @@
       <button class="btn full" onclick="saveBuy()">입고 저장</button>
     </div>
 
-    <!-- 파손·수리 -->
-    <div class="card form hidden" id="f-damage">
-      <h2>파손·수리</h2>
-      <div class="seg" id="dmgSeg">
-        <button data-k="damage" class="on">파손 → 수리·보류로</button>
-        <button data-k="repair">수리 완료 → 사용 가능으로</button>
-      </div>
-      <div class="row2">
-        <div><label>날짜</label><input type="date" id="dmgDate"></div>
-        <div><label>품목</label><select id="dmgItem" class="itemSelect"></select></div>
-      </div>
-      <div class="row2">
-        <div><label>수량</label><input type="number" min="1" inputmode="numeric" id="dmgQty"></div>
-        <div id="dmgReasonBox"><label>파손 내용</label>
-          <select id="dmgReason"><option>버클 파손</option><option>끈·웨빙 손상</option><option>원단 찢어짐</option><option>부력재 손상</option><option>오염·변색</option><option>기타</option></select>
-        </div>
-      </div>
-      <label>메모</label><input id="dmgMemo">
-      <div class="hint" id="dmgHint"></div>
-      <button class="btn full" onclick="saveDamage()">저장</button>
-    </div>
-
     <!-- 폐기 -->
     <div class="card form hidden" id="f-dispose">
       <h2>폐기</h2>
@@ -305,7 +281,7 @@
       </div>
       <div class="row2">
         <div><label>어디서 빼나요</label>
-          <select id="dspFrom"><option value="repair">수리·보류 중인 것</option><option value="ok">사용 가능한 것</option></select>
+          <select id="dspFrom"><option value="ok">사용 가능한 것</option><option value="repair">수리·보류 중인 것</option></select>
         </div>
         <div><label>수량</label><input type="number" min="1" inputmode="numeric" id="dspQty"></div>
       </div>
@@ -314,20 +290,6 @@
       <label>메모</label><input id="dspMemo">
       <div class="hint" id="dspHint"></div>
       <button class="btn full danger" onclick="saveDispose()">폐기 저장</button>
-    </div>
-
-    <!-- 점검 -->
-    <div class="card form hidden" id="f-inspect">
-      <h2>정기 점검</h2>
-      <div class="row2">
-        <div><label>점검일</label><input type="date" id="insDate"></div>
-        <div><label>협찬사</label><select id="insGroup" class="groupSelect all"></select></div>
-      </div>
-      <table><thead><tr><th>품목</th><th class="num">점검 수량</th><th class="num">이상 수량</th></tr></thead><tbody id="insRows"></tbody></table>
-      <div class="hint">점검 수량은 사용 가능 수량이 미리 채워져요. 점검 안 한 품목은 0으로 두세요.</div>
-      <label class="chk"><input type="checkbox" id="insMove" checked> 이상 수량을 수리·보류로 옮기기</label>
-      <label>점검 내용 메모</label><textarea id="insMemo" rows="2" placeholder="예: 버클·끈·부력재 상태 확인"></textarea>
-      <button class="btn full" onclick="saveInspect()">점검 저장</button>
     </div>
 
     <!-- 재고 실사 -->
@@ -618,9 +580,6 @@ function buildFormTables(){
   $("#buyRows").innerHTML=itemsOf($("#buyGroup").value).map(i=>`<tr><td>${esc(i.size)} <span style="color:var(--sub);font-size:12px">${esc(i.use)}</span></td>
     <td><input type="number" min="0" inputmode="numeric" data-buyq="${i.id}" placeholder="0"></td>
     <td><input type="number" min="0" inputmode="numeric" data-buyp="${i.id}" value="${lastPrice(i.id)}" placeholder="단가"></td></tr>`).join("");
-  $("#insRows").innerHTML=groupedRows($("#insGroup").value, i=>`<tr><td>${esc(i.size)} <span style="color:var(--sub);font-size:12px">${esc(i.use)}</span></td>
-    <td><input type="number" min="0" inputmode="numeric" data-insc="${i.id}" value="${Math.max(0,st[i.id].ok)}"></td>
-    <td><input type="number" min="0" inputmode="numeric" data-insb="${i.id}" placeholder="0"></td></tr>`);
   $("#adjRows").innerHTML=groupedRows($("#adjGroup").value, i=>`<tr><td>${esc(i.size)} <span style="color:var(--sub);font-size:12px">${esc(i.use)}</span></td><td class="num">${num(st[i.id].ok)}</td>
     <td><input type="number" min="0" inputmode="numeric" data-adj="${i.id}" data-cur="${st[i.id].ok}"></td>
     <td class="num" data-adjd="${i.id}">–</td></tr>`);
@@ -662,11 +621,8 @@ function updateBuyTotal(){
   let q=0,a=0; $$("[data-buyq]").forEach(i=>{ const qq=+i.value||0, p=+($(`[data-buyp="${i.dataset.buyq}"]`).value)||0; q+=qq; a+=qq*p; });
   $("#buyTotal").innerHTML = q? `합계 <b>${num(q)}개 · ${won(a)}원</b>` : "";
 }
-let dmgKind="damage";
 function updateHints(){
   const st=stock();
-  const d=$("#dmgItem").value;
-  if(d&&st[d]) $("#dmgHint").textContent = dmgKind==="damage" ? `${itemLabel(d)} 사용 가능 ${st[d].ok}개 → 파손 수량만큼 수리·보류로 옮겨요` : `${itemLabel(d)} 수리·보류 ${st[d].repair}개 → 수리 완료 수량만큼 사용 가능으로 돌려요`;
   const p=$("#dspItem").value, from=$("#dspFrom").value;
   if(p&&st[p]) $("#dspHint").textContent = `${itemLabel(p)} ${from==="repair"?"수리·보류":"사용 가능"} ${from==="repair"?st[p].repair:st[p].ok}개에서 빼요`;
 }
@@ -685,17 +641,6 @@ window.saveBuy = async ()=>{
   $$("[data-buyq]").forEach(i=>i.value=""); $("#buyMemo").value=""; updateBuyTotal();
   toast(`입고 ${num(logs.reduce((a,l)=>a+l.qty,0))}개 저장했어요`);
 };
-window.saveDamage = async ()=>{
-  const date=$("#dmgDate").value, itemId=$("#dmgItem").value, qty=+$("#dmgQty").value||0;
-  if(!need(date,"날짜를 넣어 주세요")||!need(qty>0,"수량을 넣어 주세요")) return;
-  const st=stock()[itemId], have = dmgKind==="damage"?st.ok:st.repair;
-  if(qty>have && !confirm(`현재 ${dmgKind==="damage"?"사용 가능":"수리·보류"} 수량(${have}개)보다 많아요. 그래도 저장할까요?`)) return;
-  const l={id:uid(),type:dmgKind,date,ts:Date.now(),itemId,qty,memo:$("#dmgMemo").value.trim()};
-  if(dmgKind==="damage") l.reason=$("#dmgReason").value;
-  await store.addMany([l]);
-  $("#dmgQty").value=""; $("#dmgMemo").value="";
-  toast(dmgKind==="damage"?"파손 기록 저장했어요":"수리 완료 저장했어요");
-};
 window.saveDispose = async ()=>{
   const date=$("#dspDate").value, itemId=$("#dspItem").value, qty=+$("#dspQty").value||0, from=$("#dspFrom").value;
   if(!need(date,"폐기일을 넣어 주세요")||!need(qty>0,"수량을 넣어 주세요")) return;
@@ -704,19 +649,6 @@ window.saveDispose = async ()=>{
   await store.addMany([{id:uid(),type:"dispose",date,ts:Date.now(),itemId,qty,from,reason:$("#dspReason").value,memo:$("#dspMemo").value.trim()}]);
   $("#dspQty").value=""; $("#dspMemo").value="";
   toast("폐기 기록 저장했어요");
-};
-window.saveInspect = async ()=>{
-  const date=$("#insDate").value, memo=$("#insMemo").value.trim();
-  if(!need(date,"점검일을 넣어 주세요")) return;
-  const items=$$("[data-insc]").map(i=>({itemId:i.dataset.insc, checked:+i.value||0, bad:+($(`[data-insb="${i.dataset.insc}"]`).value)||0})).filter(i=>i.checked||i.bad);
-  if(!need(items.length,"점검 수량을 넣어 주세요")) return;
-  const ts=Date.now();
-  const logs=[{id:uid(),type:"inspect",date,ts,memo,items}];
-  if($("#insMove").checked) items.filter(i=>i.bad>0).forEach(i=>logs.push({id:uid(),type:"damage",date,ts:ts+1,itemId:i.itemId,qty:i.bad,reason:"점검 이상",auto:true,memo:""}));
-  await store.addMany(logs);
-  $$("[data-insb]").forEach(i=>i.value=""); $("#insMemo").value="";
-  const bad=items.reduce((a,i)=>a+i.bad,0);
-  toast(`점검 저장 · 이상 ${bad}개${bad&&$("#insMove").checked?" 수리·보류로 이동":""}`);
 };
 window.saveAdjust = async ()=>{
   const date=$("#adjDate").value, memo=$("#adjMemo").value.trim();
@@ -812,9 +744,8 @@ window.go = t=>{ $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t
 $$("nav button").forEach(b=>b.onclick=()=>go(b.dataset.t));
 $$("#viewSeg button").forEach(b=>b.onclick=()=>{ viewMode=b.dataset.v; $$("#viewSeg button").forEach(x=>x.classList.toggle("on",x===b)); $("#viewGroup").classList.toggle("hidden",viewMode!=="group"); $("#viewSize").classList.toggle("hidden",viewMode!=="size"); });
 $$("#formSeg button").forEach(b=>b.onclick=()=>{ $$("#formSeg button").forEach(x=>x.classList.toggle("on",x===b)); $$(".form").forEach(f=>f.classList.toggle("hidden",f.id!=="f-"+b.dataset.f)); buildFormTables(); updateHints(); });
-$$("#dmgSeg button").forEach(b=>b.onclick=()=>{ dmgKind=b.dataset.k; $$("#dmgSeg button").forEach(x=>x.classList.toggle("on",x===b)); $("#dmgReasonBox").style.visibility=dmgKind==="damage"?"visible":"hidden"; updateHints(); });
-["#dmgItem","#dspItem","#dspFrom"].forEach(s=>$(s).addEventListener("change",updateHints));
-["#buyGroup","#insGroup","#adjGroup"].forEach(s=>$(s).addEventListener("change",()=>{ buildFormTables(); if(s==="#buyGroup" && !$("#buyVendor").value) $("#buyVendor").value=$("#buyGroup").value; }));
+["#dspItem","#dspFrom"].forEach(s=>$(s).addEventListener("change",updateHints));
+["#buyGroup","#adjGroup"].forEach(s=>$(s).addEventListener("change",()=>{ buildFormTables(); if(s==="#buyGroup" && !$("#buyVendor").value) $("#buyVendor").value=$("#buyGroup").value; }));
 document.addEventListener("input",e=>{
   if(e.target.matches("[data-buyq],[data-buyp]")) updateBuyTotal();
   if(e.target.matches("[data-adj]")){ const i=e.target, c=$(`[data-adjd="${i.dataset.adj}"]`); if(i.value===""){c.textContent="–";return;} const d=(+i.value)-(+i.dataset.cur); c.innerHTML=d===0?"0":`<b style="color:${d<0?"var(--red)":"var(--blue)"}">${d>0?"+":""}${d}</b>`; }
@@ -830,7 +761,7 @@ document.addEventListener("click",async e=>{
     row.remove(); }
 });
 ["#fType","#fGroup","#fMonth"].forEach(s=>$(s).addEventListener("change",renderLogs));
-["#buyDate","#dmgDate","#dspDate","#insDate","#adjDate"].forEach(s=>$(s).value=today());
+["#buyDate","#dspDate","#adjDate"].forEach(s=>$(s).value=today());
 
 initStore().catch(err=>{ console.error(err); $("#sync").textContent="연결 오류"; toast("Firebase를 불러오지 못했어요"); });
 </script>

@@ -122,7 +122,7 @@
   .sgrp{border:1px solid var(--line);border-left:5px solid var(--gc);border-radius:12px;padding:10px;margin-top:10px}
   .sgrp-h{display:flex;gap:8px;align-items:center}
   .sgrp-h input{font-weight:700}
-  .sitem{display:grid;grid-template-columns:1.2fr 1.2fr .8fr .9fr .8fr auto;gap:6px;align-items:end;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .sitem{display:grid;grid-template-columns:1.2fr 1.2fr .8fr 1fr auto;gap:6px;align-items:end;padding:8px 0;border-bottom:1px dashed var(--line)}
   .sitem:last-of-type{border-bottom:0}
   .sitem label{margin:0 0 3px;font-size:11px;white-space:nowrap}
   .sitem>*{min-width:0}
@@ -178,7 +178,7 @@
     .kpis{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:1fr 1fr}
     .sitem{grid-template-columns:repeat(6,1fr);position:relative;padding-right:30px}
     .sitem>div:nth-child(1),.sitem>div:nth-child(2){grid-column:span 3}
-    .sitem>div:nth-child(3),.sitem>div:nth-child(4),.sitem>div:nth-child(5){grid-column:span 2}
+    .sitem>div:nth-child(3),.sitem>div:nth-child(4){grid-column:span 3}
     .sitem>.x{position:absolute;right:0;top:50%;transform:translateY(-50%)}
   }
 </style>
@@ -215,8 +215,8 @@
       </div>
     <div class="kpis">
       <div class="kpi"><div class="l">총 보유</div><div class="v" id="kTotal">0<span>개</span></div></div>
-      <div class="kpi"><div class="l">사용 가능</div><div class="v" id="kOk">0<span>개</span></div></div>
-      <div class="kpi"><div class="l">수리·보류</div><div class="v" id="kRepair">0<span>개</span></div></div>
+      <div class="kpi"><div class="l" id="kBuyL">올해 입고</div><div class="v" id="kBuy">0<span>개</span></div></div>
+      <div class="kpi"><div class="l" id="kDspL">올해 폐기</div><div class="v" id="kDsp">0<span>개</span></div></div>
       <div class="kpi" id="kLowBox"><div class="l">부족 품목</div><div class="v" id="kLow">0<span>개</span></div></div>
     </div>
     </div>
@@ -230,7 +230,6 @@
       </h2>
       <div id="viewGroup"></div>
       <div id="viewSize" class="hidden"></div>
-      <div class="hint">큰 숫자 = 사용 가능 수량 · 주황 글씨 = 수리·보류 수량</div>
     </div>
 
     <div class="card">
@@ -280,13 +279,10 @@
         <div><label>품목</label><select id="dspItem" class="itemSelect"></select></div>
       </div>
       <div class="row2">
-        <div><label>어디서 빼나요</label>
-          <select id="dspFrom"><option value="ok">사용 가능한 것</option><option value="repair">수리·보류 중인 것</option></select>
-        </div>
         <div><label>수량</label><input type="number" min="1" inputmode="numeric" id="dspQty"></div>
+        <div><label>사유</label>
+      <select id="dspReason"><option>파손</option><option>노후</option><option>분실</option><option>오염</option><option>기타</option></select></div>
       </div>
-      <label>사유</label>
-      <select id="dspReason"><option>파손(수리 불가)</option><option>노후</option><option>분실</option><option>오염</option><option>기타</option></select>
       <label>메모</label><input id="dspMemo">
       <div class="hint" id="dspHint"></div>
       <button class="btn full danger" onclick="saveDispose()">폐기 저장</button>
@@ -300,7 +296,7 @@
         <div><label>협찬사</label><select id="adjGroup" class="groupSelect all"></select></div>
       </div>
       <table><thead><tr><th>품목</th><th class="num">프로그램</th><th class="num">실제 수량</th><th class="num">차이</th></tr></thead><tbody id="adjRows"></tbody></table>
-      <div class="hint">직접 센 <b>사용 가능</b> 수량을 넣으면 차이만큼 조정 기록이 남아요. 비워 둔 품목은 그대로 둬요.</div>
+      <div class="hint">직접 센 <b>현재 재고</b> 수량을 넣으면 차이만큼 조정 기록이 남아요. 비워 둔 품목은 그대로 둬요.</div>
       <label>메모</label><input id="adjMemo" placeholder="예: 시즌 종료 실사">
       <button class="btn full" onclick="saveAdjust()">실사 반영</button>
     </div>
@@ -310,7 +306,7 @@
   <section id="tab-logs" class="hidden">
     <div class="card">
       <div class="filters">
-        <select id="fType"><option value="">전체 구분</option><option value="buy">구매·입고</option><option value="damage">파손</option><option value="repair">수리 완료</option><option value="dispose">폐기</option><option value="inspect">점검</option><option value="adjust">실사 조정</option></select>
+        <select id="fType"><option value="">전체 구분</option><option value="buy">구매·입고</option><option value="dispose">폐기</option><option value="adjust">실사 조정</option></select>
         <select id="fGroup" class="groupSelect all"></select>
         <input type="month" id="fMonth">
       </div>
@@ -324,7 +320,6 @@
     <div class="card rep-tools">
       <button class="btn" onclick="printReport()">📄 PDF 저장 / 인쇄</button>
       <label class="chk"><input type="checkbox" id="repYear" checked> 올해 변동 내역</label>
-      <label class="chk"><input type="checkbox" id="repRepair" checked> 수리·보류 칸</label>
       <div class="hint" style="flex:0 0 100%;margin:0">인쇄 창에서 대상(프린터)을 <b>PDF로 저장</b>으로 고르면 PDF 파일로 저장돼요. 휴대폰은 공유 → 인쇄 → PDF 저장을 쓰면 돼요.</div>
     </div>
     <div class="paper" id="reportPaper"></div>
@@ -340,7 +335,7 @@
         <button class="btn sm" onclick="saveSettings()">설정 저장</button>
       </div>
       <div class="hint">
-        · <b>시작 사용가능 / 시작 수리</b>: 이 프로그램을 쓰기 시작할 때 갖고 있던 수량이에요. 그 뒤 변동은 입력 기록으로 자동 계산돼요.<br>
+        · <b>시작 수량</b>: 이 프로그램을 쓰기 시작할 때 갖고 있던 수량이에요. 그 뒤 변동은 입력 기록으로 자동 계산돼요.<br>
         · <b>최소</b>: 이 수량보다 적으면 현황에 '부족'으로 표시돼요. 0이면 표시 안 해요.<br>
         · 협찬사 이름을 고치면 그 협찬사의 품목이 모두 함께 바뀌어요. 바꾼 뒤 꼭 <b>설정 저장</b>을 누르세요.
       </div>
@@ -458,14 +453,12 @@ async function initStore(){
 /* ---------- 계산 ---------- */
 function stock(){
   const m={};
-  state.items.forEach(i=>m[i.id]={ok:+i.startOk||0, repair:+i.startRepair||0});
+  state.items.forEach(i=>m[i.id]={ok:(+i.startOk||0)+(+i.startRepair||0)});
   for(const l of state.logs){
     const s=m[l.itemId]; if(!s) continue;
     const q=+l.qty||0;
     if(l.type==="buy") s.ok+=q;
-    else if(l.type==="damage"){ s.ok-=q; s.repair+=q; }
-    else if(l.type==="repair"){ s.repair-=q; s.ok+=q; }
-    else if(l.type==="dispose"){ if(l.from==="repair") s.repair-=q; else s.ok-=q; }
+    else if(l.type==="dispose") s.ok-=q;
     else if(l.type==="adjust") s.ok+=q;
   }
   return m;
@@ -477,36 +470,36 @@ const logGroups = l => l.type==="inspect" ? (l.items||[]).map(i=>itemById(i.item
 let viewMode="group";
 function render(){
   const st=stock();
-  let tot=0, ok=0, rep=0, low=0;
-  state.items.forEach(i=>{ const v=st[i.id]; ok+=v.ok; rep+=v.repair; if(+i.min>0 && v.ok<+i.min) low++; });
-  tot=ok+rep;
-  $("#kTotal").innerHTML=`${num(tot)}<span>개</span>`; $("#kOk").innerHTML=`${num(ok)}<span>개</span>`;
-  $("#kRepair").innerHTML=`${num(rep)}<span>개</span>`; $("#kLow").innerHTML=`${low}<span>개</span>`;
+  let ok=0, low=0;
+  state.items.forEach(i=>{ const v=st[i.id]; ok+=v.ok; if(+i.min>0 && v.ok<+i.min) low++; });
+  const yy=String(new Date().getFullYear()), yq=t=>state.logs.filter(l=>l.type===t&&(l.date||"").startsWith(yy)).reduce((a,l)=>a+(+l.qty||0),0);
+  $("#kTotal").innerHTML=`${num(ok)}<span>개</span>`;
+  $("#kBuy").innerHTML=`${num(yq("buy"))}<span>개</span>`; $("#kBuyL").textContent=`${yy}년 입고`;
+  $("#kDsp").innerHTML=`${num(yq("dispose"))}<span>개</span>`; $("#kDspL").textContent=`${yy}년 폐기`;
+  $("#kLow").innerHTML=`${low}<span>개</span>`;
   $("#kLowBox").classList.toggle("warn", low>0);
 
   { const n=new Date(); $("#heroDate").textContent=`${n.getFullYear()}.${n.getMonth()+1}.${n.getDate()} 기준 · 협찬사 ${groups().length}곳 · 품목 ${state.items.length}종`; }
   if(!$("#tab-report").classList.contains("hidden")) renderReport();
   // 구분별
   $("#viewGroup").innerHTML = groups().map(g=>{
-    const its=itemsOf(g); const gs=its.reduce((a,i)=>a+st[i.id].ok+st[i.id].repair,0);
+    const its=itemsOf(g); const gs=its.reduce((a,i)=>a+st[i.id].ok,0);
     return `<div class="grp" style="--gc:${gColor(g)}">
       <div class="grp-h"><b>🏷️ ${esc(g)}</b><span>합계 ${num(gs)}개</span></div>
       <div class="items">${its.map(i=>{ const v=st[i.id]; const isLow=+i.min>0&&v.ok<+i.min;
-        return `<div class="item ${v.ok+v.repair===0?"zero":""} ${isLow?"low":""}">
+        return `<div class="item ${v.ok===0?"zero":""} ${isLow?"low":""}">
           ${isLow?'<span class="lowtag">부족</span>':""}
           <div class="sz">${esc(i.size)}</div><div class="use">${esc(i.use)}</div>
-          <div class="ok">${num(v.ok)}</div>
-          <div class="rp">${v.repair?`수리 ${v.repair}`:""}</div></div>`; }).join("")}</div></div>`;
+          <div class="ok">${num(v.ok)}</div></div>`; }).join("")}</div></div>`;
   }).join("") || '<div class="empty">⚙️ 설정에서 품목을 추가하세요</div>';
 
   // 사이즈별 합계
   const sizes=[...new Set(state.items.map(i=>i.size))].sort((a,b)=>sizeKey(a)-sizeKey(b));
   const uses=USES.filter(u=>state.items.some(i=>i.use===u)).concat([...new Set(state.items.map(i=>i.use))].filter(u=>!USES.includes(u)));
   const cell=(sz,u)=>state.items.filter(i=>i.size===sz&&(!u||i.use===u)).reduce((a,i)=>a+st[i.id].ok,0);
-  const cellR=(sz)=>state.items.filter(i=>i.size===sz).reduce((a,i)=>a+st[i.id].repair,0);
-  $("#viewSize").innerHTML = `<table class="sztable"><thead><tr><th>사이즈</th>${uses.map(u=>`<th class="num">${esc(u)}</th>`).join("")}<th class="num">사용 가능 합계</th><th class="num">수리</th></tr></thead><tbody>
-    ${sizes.map(sz=>`<tr><td><b>${esc(sz)}</b></td>${uses.map(u=>`<td class="num">${num(cell(sz,u))}</td>`).join("")}<td class="num"><b>${num(cell(sz))}</b></td><td class="num" style="color:#b25e0d">${cellR(sz)||""}</td></tr>`).join("")}
-    <tr><td><b>합계</b></td>${uses.map(u=>`<td class="num"><b>${num(state.items.filter(i=>i.use===u).reduce((a,i)=>a+st[i.id].ok,0))}</b></td>`).join("")}<td class="num"><b>${num(ok)}</b></td><td class="num" style="color:#b25e0d">${rep||""}</td></tr>
+  $("#viewSize").innerHTML = `<table class="sztable"><thead><tr><th>사이즈</th>${uses.map(u=>`<th class="num">${esc(u)}</th>`).join("")}<th class="num">합계</th></tr></thead><tbody>
+    ${sizes.map(sz=>`<tr><td><b>${esc(sz)}</b></td>${uses.map(u=>`<td class="num">${num(cell(sz,u))}</td>`).join("")}<td class="num"><b>${num(cell(sz))}</b></td></tr>`).join("")}
+    <tr><td><b>합계</b></td>${uses.map(u=>`<td class="num"><b>${num(state.items.filter(i=>i.use===u).reduce((a,i)=>a+st[i.id].ok,0))}</b></td>`).join("")}<td class="num"><b>${num(ok)}</b></td></tr>
     </tbody></table>
     <div class="hint" style="margin-top:10px">${sizes.map(sz=>`<b>${esc(sz)}</b>: ${itemsOf().filter(i=>i.size===sz&&st[i.id].ok).map(i=>`${esc(i.group)} ${num(st[i.id].ok)}`).join(" · ")||"없음"}`).join("<br>")}</div>`;
 
@@ -517,13 +510,12 @@ function render(){
   const sum=(t,f=l=>+l.qty||0)=>yl.filter(l=>l.type===t).reduce((a,l)=>a+f(l),0);
   $("#yearSummary").innerHTML=`
     <tr><td>구매·입고</td><td class="num"><b>${num(sum("buy"))}</b>개</td><td class="num">${won(sum("buy",l=>(+l.qty||0)*(+l.price||0)))}원</td></tr>
-    <tr><td>파손 발생</td><td class="num"><b>${num(sum("damage"))}</b>개</td><td class="num">수리 완료 ${num(sum("repair"))}개</td></tr>
     <tr><td>폐기</td><td class="num"><b>${num(sum("dispose"))}</b>개</td><td class="num"></td></tr>
-    <tr><td>점검</td><td class="num"><b>${yl.filter(l=>l.type==="inspect").length}</b>회</td><td class="num"></td></tr>`;
+    <tr><td>실사 조정</td><td class="num"><b>${(n=>(n>0?"+":"")+num(n))(sum("adjust"))}</b>개</td><td class="num"></td></tr>`;
   const rs={}; yl.filter(l=>l.type==="dispose").forEach(l=>rs[l.reason||"기타"]=(rs[l.reason||"기타"]||0)+(+l.qty||0));
   $("#disposeReasons").innerHTML = Object.keys(rs).length ? Object.entries(rs).sort((a,b)=>b[1]-a[1]).map(([r,q])=>`<span>${esc(r)} ${q}개</span>`).join("") : '<span>올해 폐기 기록 없음</span>';
-  const lastIns = sortedLogs().find(l=>l.type==="inspect");
-  $("#lastInspect").textContent = lastIns ? `마지막 점검 ${lastIns.date}` : "점검 기록 없음";
+  const lastAdj = sortedLogs().find(l=>l.type==="adjust");
+  $("#lastInspect").textContent = lastAdj ? `마지막 실사 ${lastAdj.date}` : "";
   $("#recentLogs").innerHTML = logHtml(sortedLogs().slice(0,5), false) || '<div class="empty">아직 기록이 없어요</div>';
 
   // 선택 목록
@@ -553,7 +545,7 @@ function logHtml(list, canDelete){
       const extra=[];
       if(l.type==="buy"){ if(l.price) extra.push(`${won(l.price)}원 × ${num(l.qty)} = ${won(l.price*l.qty)}원`); if(l.vendor) extra.push(esc(l.vendor)); }
       if(l.type==="damage"&&l.reason) extra.push(esc(l.reason));
-      if(l.type==="dispose") extra.push((l.from==="repair"?"수리·보류에서":"사용 가능에서")+" · "+esc(l.reason||""));
+      if(l.type==="dispose") extra.push(esc(l.reason||""));
       if(l.auto) extra.push("점검에서 자동");
       if(l.memo) extra.push(esc(l.memo));
       body=`<span class="tag t-${l.type}">${TYPE_LABEL[l.type]}</span> ${esc(itemLabel(l.itemId))} <b>${sign}${num(l.qty)}</b>개
@@ -600,8 +592,7 @@ function setItemHtml(i){
     <div><label>사이즈</label><select data-k="size">${[...new Set(SIZES.concat(i.size?[i.size]:[]))].map(z=>`<option ${z===i.size?"selected":""}>${esc(z)}</option>`).join("")}</select></div>
     <div><label>용도</label><select data-k="use">${useOpts}</select></div>
     <div class="w2m"><label>최소</label><input data-k="min" type="number" min="0" inputmode="numeric" value="${i.min||0}"></div>
-    <div><label>시작 사용가능</label><input data-k="startOk" type="number" min="0" inputmode="numeric" value="${i.startOk||0}"></div>
-    <div><label>시작 수리</label><input data-k="startRepair" type="number" min="0" inputmode="numeric" value="${i.startRepair||0}"></div>
+    <div><label>시작 수량</label><input data-k="startOk" type="number" min="0" inputmode="numeric" value="${(+i.startOk||0)+(+i.startRepair||0)}"></div>
     <button class="x" data-rmitem title="삭제">✕</button></div>`;
 }
 window.addGroup = ()=>{ $("#setGroups").insertAdjacentHTML("beforeend", setGroupHtml("", [{id:"i"+uid(),size:"영유아",use:"일반",min:0,startOk:0,startRepair:0}])); $("#setGroups .sgrp:last-child .gname").focus(); };
@@ -610,7 +601,7 @@ window.saveSettings = async ()=>{
   $$("#setGroups .sgrp").forEach(sg=>{ const g=sg.querySelector(".gname").value.trim(); if(!g) return;
     sg.querySelectorAll(".sitem").forEach(r=>{ const v=k=>r.querySelector(`[data-k="${k}"]`).value;
       const size=v("size").trim(); if(!size) return;
-      items.push({id:r.dataset.iid, group:g, size, use:v("use"), min:+v("min")||0, startOk:+v("startOk")||0, startRepair:+v("startRepair")||0}); }); });
+      items.push({id:r.dataset.iid, group:g, size, use:v("use"), min:+v("min")||0, startOk:+v("startOk")||0, startRepair:0}); }); });
   if(!items.length){ toast("품목을 하나 이상 넣어 주세요"); return; }
   document.activeElement?.blur();
   await store.setItems(items);
@@ -623,8 +614,9 @@ function updateBuyTotal(){
 }
 function updateHints(){
   const st=stock();
-  const p=$("#dspItem").value, from=$("#dspFrom").value;
-  if(p&&st[p]) $("#dspHint").textContent = `${itemLabel(p)} ${from==="repair"?"수리·보류":"사용 가능"} ${from==="repair"?st[p].repair:st[p].ok}개에서 빼요`;
+  const p=$("#dspItem").value;
+  const dq=+$("#dspQty").value||0;
+  if(p&&st[p]) $("#dspHint").innerHTML = `${esc(itemLabel(p))} 현재 재고 <b>${num(st[p].ok)}</b>개${dq?` − 폐기 ${num(dq)}개 = 남는 재고 <b>${num(st[p].ok-dq)}</b>개`:""}`;
 }
 
 /* ---------- 저장 동작 ---------- */
@@ -642,11 +634,11 @@ window.saveBuy = async ()=>{
   toast(`입고 ${num(logs.reduce((a,l)=>a+l.qty,0))}개 저장했어요`);
 };
 window.saveDispose = async ()=>{
-  const date=$("#dspDate").value, itemId=$("#dspItem").value, qty=+$("#dspQty").value||0, from=$("#dspFrom").value;
+  const date=$("#dspDate").value, itemId=$("#dspItem").value, qty=+$("#dspQty").value||0;
   if(!need(date,"폐기일을 넣어 주세요")||!need(qty>0,"수량을 넣어 주세요")) return;
-  const st=stock()[itemId], have = from==="repair"?st.repair:st.ok;
-  if(qty>have && !confirm(`현재 ${from==="repair"?"수리·보류":"사용 가능"} 수량(${have}개)보다 많아요. 그래도 저장할까요?`)) return;
-  await store.addMany([{id:uid(),type:"dispose",date,ts:Date.now(),itemId,qty,from,reason:$("#dspReason").value,memo:$("#dspMemo").value.trim()}]);
+  const have=stock()[itemId].ok;
+  if(qty>have && !confirm(`현재 수량(${have}개)보다 많아요. 그래도 저장할까요?`)) return;
+  await store.addMany([{id:uid(),type:"dispose",date,ts:Date.now(),itemId,qty,reason:$("#dspReason").value,memo:$("#dspMemo").value.trim()}]);
   $("#dspQty").value=""; $("#dspMemo").value="";
   toast("폐기 기록 저장했어요");
 };
@@ -666,52 +658,42 @@ window.saveAdjust = async ()=>{
 function renderReport(){
   const st=stock(), now=new Date();
   const ds=`${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일`;
-  const showR=$("#repRepair").checked;
   const sizes=[...new Set(state.items.map(i=>i.size))].sort((a,b)=>sizeKey(a)-sizeKey(b));
   const uses=USES.filter(u=>state.items.some(i=>i.use===u)).concat([...new Set(state.items.map(i=>i.use))].filter(u=>!USES.includes(u)));
   const okOf=f=>state.items.filter(f).reduce((a,i)=>a+st[i.id].ok,0);
-  const rpOf=f=>state.items.filter(f).reduce((a,i)=>a+st[i.id].repair,0);
   const td=v=>`<td class="${v?"":"zero"}">${v?num(v):"-"}</td>`;
-  const okAll=okOf(()=>true), rpAll=rpOf(()=>true);
-
-  // 1. 사이즈별
-  const t1=`<table class="rt"><thead><tr><th>사이즈</th>${uses.map(u=>`<th>${esc(u)}</th>`).join("")}<th>사용 가능</th>${showR?"<th>수리·보류</th>":""}<th>합계</th></tr></thead><tbody>
-    ${sizes.map(z=>{const ok=okOf(i=>i.size===z), rp=rpOf(i=>i.size===z);
-      return `<tr><td>${esc(z)}</td>${uses.map(u=>td(okOf(i=>i.size===z&&i.use===u))).join("")}${td(ok)}${showR?td(rp):""}<td><b>${num(ok+(showR?rp:0))}</b></td></tr>`;}).join("")}
-    <tr class="tot"><td>합계</td>${uses.map(u=>td(okOf(i=>i.use===u))).join("")}${td(okAll)}${showR?td(rpAll):""}<td>${num(okAll+(showR?rpAll:0))}</td></tr></tbody></table>`;
-
-  // 2. 협찬사 × 사이즈
-  const t2=`<table class="rt"><thead><tr><th>협찬사</th><th>용도</th>${sizes.map(z=>`<th>${esc(z)}</th>`).join("")}<th>합계</th></tr></thead><tbody>
-    ${groups().map(g=>{const its=state.items.filter(i=>i.group===g); const u=[...new Set(its.map(i=>i.use))].join("·");
-      const v=z=>its.filter(i=>i.size===z).reduce((a,i)=>a+st[i.id].ok+(showR?st[i.id].repair:0),0);
-      const tot=sizes.reduce((a,z)=>a+v(z),0);
-      return `<tr><td>${esc(g)}</td><td style="text-align:center;font-weight:400">${esc(u)}</td>${sizes.map(z=>td(v(z))).join("")}<td><b>${num(tot)}</b></td></tr>`;}).join("")}
-    <tr class="tot"><td colspan="2">합계</td>${sizes.map(z=>td(state.items.filter(i=>i.size===z).reduce((a,i)=>a+st[i.id].ok+(showR?st[i.id].repair:0),0))).join("")}<td>${num(okAll+(showR?rpAll:0))}</td></tr></tbody></table>`;
-
-  // 3. 올해 변동
+  const okAll=okOf(()=>true);
   const y=String(now.getFullYear()), yl=state.logs.filter(l=>(l.date||"").startsWith(y));
   const sum=(t,f=l=>+l.qty||0)=>yl.filter(l=>l.type===t).reduce((a,l)=>a+f(l),0);
+
+  const t1=`<table class="rt"><thead><tr><th>사이즈</th>${uses.map(u=>`<th>${esc(u)}</th>`).join("")}<th>합계</th></tr></thead><tbody>
+    ${sizes.map(z=>`<tr><td>${esc(z)}</td>${uses.map(u=>td(okOf(i=>i.size===z&&i.use===u))).join("")}<td><b>${num(okOf(i=>i.size===z))}</b></td></tr>`).join("")}
+    <tr class="tot"><td>합계</td>${uses.map(u=>td(okOf(i=>i.use===u))).join("")}<td>${num(okAll)}</td></tr></tbody></table>`;
+
+  const t2=`<table class="rt"><thead><tr><th>협찬사</th><th>용도</th>${sizes.map(z=>`<th>${esc(z)}</th>`).join("")}<th>합계</th></tr></thead><tbody>
+    ${groups().map(g=>{const u=[...new Set(state.items.filter(i=>i.group===g).map(i=>i.use))].join("·");
+      return `<tr><td>${esc(g)}</td><td style="text-align:center;font-weight:400">${esc(u)}</td>${sizes.map(z=>td(okOf(i=>i.group===g&&i.size===z))).join("")}<td><b>${num(okOf(i=>i.group===g))}</b></td></tr>`;}).join("")}
+    <tr class="tot"><td colspan="2">합계</td>${sizes.map(z=>td(okOf(i=>i.size===z))).join("")}<td>${num(okAll)}</td></tr></tbody></table>`;
+
   const rs={}; yl.filter(l=>l.type==="dispose").forEach(l=>rs[l.reason||"기타"]=(rs[l.reason||"기타"]||0)+(+l.qty||0));
+  const adj=sum("adjust");
   const t3=`<table class="rt"><thead><tr><th>구분</th><th>수량</th><th>비고</th></tr></thead><tbody>
     <tr><td>구매·입고</td><td>${num(sum("buy"))}개</td><td style="text-align:left">${won(sum("buy",l=>(+l.qty||0)*(+l.price||0)))}원 (부가세 포함)</td></tr>
-    <tr><td>파손 발생</td><td>${num(sum("damage"))}개</td><td style="text-align:left">수리 완료 ${num(sum("repair"))}개</td></tr>
     <tr><td>폐기</td><td>${num(sum("dispose"))}개</td><td style="text-align:left">${Object.entries(rs).map(([r,q])=>`${esc(r)} ${q}`).join(", ")||"-"}</td></tr>
-    <tr><td>정기 점검</td><td>${yl.filter(l=>l.type==="inspect").length}회</td><td style="text-align:left">${(sortedLogs().find(l=>l.type==="inspect")||{}).date?"최근 "+sortedLogs().find(l=>l.type==="inspect").date:"-"}</td></tr></tbody></table>`;
+    <tr><td>실사 조정</td><td>${adj>0?"+":""}${num(adj)}개</td><td style="text-align:left">${(sortedLogs().find(l=>l.type==="adjust")||{}).date?"최근 실사 "+sortedLogs().find(l=>l.type==="adjust").date:"-"}</td></tr></tbody></table>`;
 
   $("#reportPaper").innerHTML=`
-    <div class="rh"><div><h1>구명자켓 재고 현황 보고</h1><div class="rmeta">기준일 ${ds} · 협찬사 ${groups().length}곳 · 품목 ${state.items.length}종</div></div>
-</div>
+    <div class="rh"><div><h1>구명자켓 재고 현황 보고</h1><div class="rmeta">기준일 ${ds} · 협찬사 ${groups().length}곳 · 품목 ${state.items.length}종</div></div></div>
     <h3>1. 전체 재고 요약</h3>
-    <div class="rk"><div><span>총 보유</span><b>${num(okAll+rpAll)}</b></div><div><span>사용 가능</span><b>${num(okAll)}</b></div><div><span>수리·보류</span><b>${num(rpAll)}</b></div><div><span>협찬사</span><b>${groups().length}</b></div></div>
+    <div class="rk"><div><span>총 보유</span><b>${num(okAll)}</b></div><div><span>${y}년 입고</span><b>${num(sum("buy"))}</b></div><div><span>${y}년 폐기</span><b>${num(sum("dispose"))}</b></div><div><span>협찬사</span><b>${groups().length}</b></div></div>
     <h3>2. 사이즈별 수량</h3>${t1}
     <div class="rnote">용도: 단체용 / 공용(단체·일반 공용) / 일반</div>
     <h3>3. 협찬사별 · 사이즈별 수량</h3>${t2}
-    <div class="rnote">${showR?"수량 = 사용 가능 + 수리·보류":"수량 = 사용 가능 기준"}</div>
     ${$("#repYear").checked?`<h3>4. ${y}년 변동 내역</h3>${t3}`:""}
     <div class="rnote" style="text-align:right;margin-top:16px">출력 ${now.toLocaleString("ko-KR")}</div>`;
 }
 window.printReport = ()=>{ renderReport(); const t=document.title; document.title=`구명자켓_재고현황_${today()}`; setTimeout(()=>{ window.print(); document.title=t; },50); };
-["#repYear","#repRepair"].forEach(s=>$(s).addEventListener("change",renderReport));
+["#repYear"].forEach(s=>$(s).addEventListener("change",renderReport));
 
 /* ---------- 백업 ---------- */
 function download(name, text, type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
@@ -721,13 +703,13 @@ window.exportCsv = ()=>{
   const rows=[["날짜","구분","품목","수량","단가","금액","구매처","사유","메모"]];
   sortedLogs().reverse().forEach(l=>{
     if(l.type==="inspect") (l.items||[]).forEach(i=>rows.push([l.date,"점검",itemLabel(i.itemId),i.checked,"","","",`이상 ${i.bad}`,l.memo||""]));
-    else rows.push([l.date,TYPE_LABEL[l.type],itemLabel(l.itemId),l.qty,l.price||"",l.price?l.price*l.qty:"",l.vendor||"",l.type==="dispose"?`${l.from==="repair"?"수리·보류":"사용가능"}/${l.reason||""}`:(l.reason||""),l.memo||""]);
+    else rows.push([l.date,TYPE_LABEL[l.type],itemLabel(l.itemId),l.qty,l.price||"",l.price?l.price*l.qty:"",l.vendor||"",l.reason||"",l.memo||""]);
   });
   download(`구명자켓_이력_${today()}.csv`, toCsv(rows), "text/csv");
 };
 window.exportStockCsv = ()=>{
-  const st=stock(); const rows=[["협찬사","사이즈","용도","사용 가능","수리·보류","합계","최소 보유"]];
-  itemsOf().forEach(i=>rows.push([i.group,i.size,i.use,st[i.id].ok,st[i.id].repair,st[i.id].ok+st[i.id].repair,i.min||0]));
+  const st=stock(); const rows=[["협찬사","사이즈","용도","보유 수량","최소 보유"]];
+  itemsOf().forEach(i=>rows.push([i.group,i.size,i.use,st[i.id].ok,i.min||0]));
   download(`구명자켓_재고_${today()}.csv`, toCsv(rows), "text/csv");
 };
 $("#importFile").addEventListener("change", async e=>{
@@ -744,7 +726,8 @@ window.go = t=>{ $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t
 $$("nav button").forEach(b=>b.onclick=()=>go(b.dataset.t));
 $$("#viewSeg button").forEach(b=>b.onclick=()=>{ viewMode=b.dataset.v; $$("#viewSeg button").forEach(x=>x.classList.toggle("on",x===b)); $("#viewGroup").classList.toggle("hidden",viewMode!=="group"); $("#viewSize").classList.toggle("hidden",viewMode!=="size"); });
 $$("#formSeg button").forEach(b=>b.onclick=()=>{ $$("#formSeg button").forEach(x=>x.classList.toggle("on",x===b)); $$(".form").forEach(f=>f.classList.toggle("hidden",f.id!=="f-"+b.dataset.f)); buildFormTables(); updateHints(); });
-["#dspItem","#dspFrom"].forEach(s=>$(s).addEventListener("change",updateHints));
+["#dspItem"].forEach(s=>$(s).addEventListener("change",updateHints));
+$("#dspQty").addEventListener("input",updateHints);
 ["#buyGroup","#adjGroup"].forEach(s=>$(s).addEventListener("change",()=>{ buildFormTables(); if(s==="#buyGroup" && !$("#buyVendor").value) $("#buyVendor").value=$("#buyGroup").value; }));
 document.addEventListener("input",e=>{
   if(e.target.matches("[data-buyq],[data-buyp]")) updateBuyTotal();

@@ -361,7 +361,6 @@
   <section id="tab-report" class="hidden">
     <div class="card rep-tools">
       <button class="btn" onclick="printReport()">📄 PDF 저장 / 인쇄</button>
-      <label class="chk"><input type="checkbox" id="repAppr" checked> 결재란</label>
       <label class="chk"><input type="checkbox" id="repYear" checked> 올해 변동 내역</label>
       <label class="chk"><input type="checkbox" id="repRepair" checked> 수리·보류 칸</label>
       <div class="hint" style="flex:0 0 100%;margin:0">인쇄 창에서 대상(프린터)을 <b>PDF로 저장</b>으로 고르면 PDF 파일로 저장돼요. 휴대폰은 공유 → 인쇄 → PDF 저장을 쓰면 돼요.</div>
@@ -769,7 +768,7 @@ function renderReport(){
 
   $("#reportPaper").innerHTML=`
     <div class="rh"><div><h1>구명자켓 재고 현황 보고</h1><div class="rmeta">기준일 ${ds} · 협찬사 ${groups().length}곳 · 품목 ${state.items.length}종</div></div>
-      ${$("#repAppr").checked?'<table class="appr"><tr><th>담당</th><th>팀장</th><th>지배인</th></tr><tr><td></td><td></td><td></td></tr></table>':""}</div>
+</div>
     <h3>1. 전체 재고 요약</h3>
     <div class="rk"><div><span>총 보유</span><b>${num(okAll+rpAll)}</b></div><div><span>사용 가능</span><b>${num(okAll)}</b></div><div><span>수리·보류</span><b>${num(rpAll)}</b></div><div><span>협찬사</span><b>${groups().length}</b></div></div>
     <h3>2. 사이즈별 수량</h3>${t1}
@@ -780,7 +779,7 @@ function renderReport(){
     <div class="rnote" style="text-align:right;margin-top:16px">출력 ${now.toLocaleString("ko-KR")}</div>`;
 }
 window.printReport = ()=>{ renderReport(); const t=document.title; document.title=`구명자켓_재고현황_${today()}`; setTimeout(()=>{ window.print(); document.title=t; },50); };
-["#repAppr","#repYear","#repRepair"].forEach(s=>$(s).addEventListener("change",renderReport));
+["#repYear","#repRepair"].forEach(s=>$(s).addEventListener("change",renderReport));
 
 /* ---------- 백업 ---------- */
 function download(name, text, type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }

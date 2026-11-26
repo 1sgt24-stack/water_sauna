@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>구명자켓 관리</title>
+<style>
+  :root{
+    --bg:#f3f6fa; --card:#fff; --ink:#1b2633; --sub:#6b7a8c; --line:#e3e9f0;
+    --blue:#1f6fd1; --blue-soft:#e8f1fc; --orange:#f08a24; --orange-soft:#fff3e6;
+    --red:#d64545; --red-soft:#fdecec; --green:#1f9d63; --green-soft:#e6f6ee;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;
+    font-size:15px;padding-bottom:84px}
+  header{background:linear-gradient(135deg,#0f4c9c,#1f6fd1);color:#fff;padding:18px 16px 22px}
+  header .top{display:flex;align-items:center;justify-content:space-between;max-width:960px;margin:0 auto}
+  header h1{margin:0;font-size:20px;letter-spacing:-.3px}
+  header .sub{font-size:12px;opacity:.85;margin-top:3px}
+  #sync{font-size:11px;padding:4px 9px;border-radius:20px;background:rgba(255,255,255,.18);white-space:nowrap}
+  main{max-width:960px;margin:-10px auto 0;padding:0 12px}
+  .banner{background:var(--orange-soft);color:#8a4b0c;border:1px solid #f6d3ad;border-radius:var(--r);padding:10px 12px;font-size:13px;margin:12px 0}
+  .card{background:var(--card);border-radius:var(--r);box-shadow:0 1px 3px rgba(20,40,70,.06);padding:14px;margin:12px 0}
+  .card h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+  .card h2 small{font-weight:400;color:var(--sub);font-size:12px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .kpi{background:var(--card);border-radius:var(--r);padding:12px 10px;box-shadow:0 1px 3px rgba(20,40,70,.06)}
+  .kpi .l{font-size:12px;color:var(--sub)}
+  .kpi .v{font-size:22px;font-weight:700;margin-top:4px}
+  .kpi .v span{font-size:12px;font-weight:400;color:var(--sub);margin-left:2px}
+  .kpi.warn .v{color:var(--red)}
+  .sizes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .size{border:1px solid var(--line);border-radius:12px;padding:12px;position:relative}
+  .size.low{border-color:#f2b6b6;background:var(--red-soft)}
+  .size .n{font-weight:700;font-size:15px}
+  .size .ok{font-size:28px;font-weight:800;margin:6px 0 2px;color:var(--blue)}
+  .size.low .ok{color:var(--red)}
+  .size .meta{font-size:12px;color:var(--sub);line-height:1.6}
+  .bar{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--blue)}
+  .size.low .bar i{background:var(--red)}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600}
+  .tag.low{background:var(--red);color:#fff;position:absolute;top:10px;right:10px}
+  .t-buy{background:var(--blue-soft);color:var(--blue)}
+  .t-damage{background:var(--orange-soft);color:#b25e0d}
+  .t-repair{background:var(--green-soft);color:var(--green)}
+  .t-dispose{background:var(--red-soft);color:var(--red)}
+  .t-inspect{background:#eef0f4;color:#4a5668}
+  .t-adjust{background:#f1ecfb;color:#6a44b8}
+  nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;
+    padding-bottom:env(safe-area-inset-bottom);z-index:10}
+  nav button{flex:1;border:0;background:none;padding:10px 0 9px;font-size:12px;color:var(--sub);cursor:pointer}
+  nav button b{display:block;font-size:20px;margin-bottom:2px}
+  nav button.on{color:var(--blue);font-weight:700}
+  .seg{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px}
+  .seg button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:20px;padding:8px 13px;font-size:13px;cursor:pointer;color:var(--ink)}
+  .seg button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+  label{display:block;font-size:12px;color:var(--sub);margin:10px 0 4px}
+  input,select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px;background:#fff;color:var(--ink);font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--blue-soft);border-color:var(--blue)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-size:12px;color:var(--sub);font-weight:500;text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}
+  td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td input{padding:8px;font-size:14px}
+  td.num,th.num{text-align:right}
+  .btn{display:inline-block;border:0;border-radius:10px;padding:12px 16px;font-size:15px;font-weight:600;cursor:pointer;background:var(--blue);color:#fff}
+  .btn.full{width:100%;margin-top:14px}
+  .btn.ghost{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+  .btn.sm{padding:7px 11px;font-size:13px}
+  .btn.danger{background:var(--red)}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.5}
+  .chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin-top:12px}
+  .chk input{width:auto}
+  .log{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+  .log:last-child{border-bottom:0}
+  .log .d{font-size:12px;color:var(--sub);width:62px;flex:0 0 62px;padding-top:2px}
+  .log .b{flex:1;min-width:0}
+  .log .b .m{font-size:12px;color:var(--sub);margin-top:3px;word-break:break-all}
+  .log .x{border:0;background:none;color:#b3bdc9;font-size:18px;cursor:pointer;padding:0 4px}
+  .filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .empty{color:var(--sub);text-align:center;padding:24px 0;font-size:14px}
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#1b2633;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:20}
+  .toast.show{opacity:1}
+  .reasons{display:flex;flex-wrap:wrap;gap:6px}
+  .reasons span{font-size:12px;background:#f3f6fa;border-radius:10px;padding:4px 9px}
+  .hidden{display:none!important}
+  @media (max-width:560px){ .kpis{grid-template-columns:repeat(2,1fr)} .filters{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div>
+      <h1>🦺 구명자켓 관리</h1>
+      <div class="sub">사이즈별 보유 · 점검 · 파손 · 폐기 · 구매 이력</div>
+    </div>
+    <div id="sync">연결 중…</div>
+  </div>
+</header>
+
+<main>
+  <div id="localBanner" class="banner hidden">
+    테스트 모드예요. 데이터가 <b>이 기기 브라우저에만</b> 저장돼요. 파일 위쪽 <code>firebaseConfig</code>에 기존 프로그램의 설정값을 붙여넣으면 휴대폰·PC가 같은 데이터를 함께 써요.
+  </div>
+
+  <!-- 현황 -->
+  <section id="tab-home">
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi"><div class="l">총 보유</div><div class="v" id="kTotal">0<span>개</span></div></div>
+      <div class="kpi"><div class="l">사용 가능</div><div class="v" id="kOk">0<span>개</span></div></div>
+      <div class="kpi"><div class="l">수리·보류</div><div class="v" id="kRepair">0<span>개</span></div></div>
+      <div class="kpi" id="kLowBox"><div class="l">부족 사이즈</div><div class="v" id="kLow">0<span>개</span></div></div>
+    </div>
+    <div class="card">
+      <h2>사이즈별 현황 <small>숫자 = 사용 가능 수량</small></h2>
+      <div class="sizes" id="sizeCards"></div>
+    </div>
+    <div class="card">
+      <h2><span id="yearTitle">올해 요약</span> <small id="lastInspect"></small></h2>
+      <table>
+        <tbody id="yearSummary"></tbody>
+      </table>
+      <label style="margin-top:12px">폐기 사유</label>
+      <div class="reasons" id="disposeReasons"></div>
+    </div>
+    <div class="card">
+      <h2>최근 기록 <small><a href="#" onclick="go('logs');return false">전체 보기</a></small></h2>
+      <div id="recentLogs"></div>
+    </div>
+  </section>
+
+  <!-- 입력 -->
+  <section id="tab-input" class="hidden">
+    <div class="seg" id="formSeg" style="margin-top:12px">
+      <button data-f="buy" class="on">구매·입고</button>
+      <button data-f="damage">파손·수리</button>
+      <button data-f="dispose">폐기</button>
+      <button data-f="inspect">점검</button>
+      <button data-f="adjust">재고 실사</button>
+    </div>
+
+    <!-- 구매 -->
+    <div class="card form" id="f-buy">
+      <h2>구매·입고</h2>
+      <div class="row2">
+        <div><label>입고일</label><input type="date" id="buyDate"></div>
+        <div><label>구매처</label><input id="buyVendor" list="vendorList" placeholder="예: OO안전용품"></div>
+      </div>
+      <datalist id="vendorList"></datalist>
+      <label>사이즈별 수량 · 단가(부가세 포함)</label>
+      <table><thead><tr><th>사이즈</th><th class="num">수량</th><th class="num">단가(원)</th></tr></thead><tbody id="buyRows"></tbody></table>
+      <div class="hint">단가는 사이즈별 지난 구매 단가가 미리 채워져요. 수량을 넣은 사이즈만 저장돼요.</div>
+      <label>메모</label><input id="buyMemo" placeholder="예: 시즌 전 보충">
+      <div class="hint" id="buyTotal"></div>
+      <button class="btn full" onclick="saveBuy()">입고 저장</button>
+    </div>
+
+    <!-- 파손·수리 -->
+    <div class="card form hidden" id="f-damage">
+      <h2>파손·수리</h2>
+      <div class="seg" id="dmgSeg">
+        <button data-k="damage" class="on">파손 → 수리·보류로</button>
+        <button data-k="repair">수리 완료 → 사용 가능으로</button>
+      </div>
+      <div class="row2">
+        <div><label>날짜</label><input type="date" id="dmgDate"></div>
+        <div><label>사이즈</label><select id="dmgSize" class="sizeSelect"></select></div>
+      </div>
+      <div class="row2">
+        <div><label>수량</label><input type="number" min="1" inputmode="numeric" id="dmgQty"></div>
+        <div id="dmgReasonBox"><label>파손 내용</label>
+          <select id="dmgReason"><option>버클 파손</option><option>끈·웨빙 손상</option><option>원단 찢어짐</option><option>부력재 손상</option><option>오염·변색</option><option>기타</option></select>
+        </div>
+      </div>
+      <label>메모</label><input id="dmgMemo">
+      <div class="hint" id="dmgHint"></div>
+      <button class="btn full" onclick="saveDamage()">저장</button>
+    </div>
+
+    <!-- 폐기 -->
+    <div class="card form hidden" id="f-dispose">
+      <h2>폐기</h2>
+      <div class="row2">
+        <div><label>폐기일</label><input type="date" id="dspDate"></div>
+        <div><label>사이즈</label><select id="dspSize" class="sizeSelect"></select></div>
+      </div>
+      <div class="row2">
+        <div><label>어디서 빼나요</label>
+          <select id="dspFrom"><option value="repair">수리·보류 중인 것</option><option value="ok">사용 가능한 것</option></select>
+        </div>
+        <div><label>수량</label><input type="number" min="1" inputmode="numeric" id="dspQty"></div>
+      </div>
+      <label>사유</label>
+      <select id="dspReason"><option>파손(수리 불가)</option><option>노후</option><option>분실</option><option>오염</option><option>기타</option></select>
+      <label>메모</label><input id="dspMemo">
+      <div class="hint" id="dspHint"></div>
+      <button class="btn full danger" onclick="saveDispose()">폐기 저장</button>
+    </div>
+
+    <!-- 점검 -->
+    <div class="card form hidden" id="f-inspect">
+      <h2>정기 점검</h2>
+      <label>점검일</label><input type="date" id="insDate">
+      <table><thead><tr><th>사이즈</th><th class="num">점검 수량</th><th class="num">이상 수량</th></tr></thead><tbody id="insRows"></tbody></table>
+      <div class="hint">점검 수량은 사용 가능 수량이 미리 채워져요. 점검 안 한 사이즈는 0으로 두세요.</div>
+      <label class="chk"><input type="checkbox" id="insMove" checked> 이상 수량을 수리·보류로 옮기기</label>
+      <label>점검 내용 메모</label><textarea id="insMemo" rows="2" placeholder="예: 버클·끈·부력재 상태 확인"></textarea>
+      <button class="btn full" onclick="saveInspect()">점검 저장</button>
+    </div>
+
+    <!-- 재고 실사 -->
+    <div class="card form hidden" id="f-adjust">
+      <h2>재고 실사</h2>
+      <label>실사일</label><input type="date" id="adjDate">
+      <table><thead><tr><th>사이즈</th><th class="num">프로그램</th><th class="num">실제 수량</th><th class="num">차이</th></tr></thead><tbody id="adjRows"></tbody></table>
+      <div class="hint">직접 센 <b>사용 가능</b> 수량을 넣으면 차이만큼 조정 기록이 남아요. 비워 둔 사이즈는 그대로 둬요.</div>
+      <label>메모</label><input id="adjMemo" placeholder="예: 시즌 종료 실사">
+      <button class="btn full" onclick="saveAdjust()">실사 반영</button>
+    </div>
+  </section>
+
+  <!-- 이력 -->
+  <section id="tab-logs" class="hidden">
+    <div class="card">
+      <div class="filters">
+        <select id="fType"><option value="">전체 구분</option><option value="buy">구매·입고</option><option value="damage">파손</option><option value="repair">수리 완료</option><option value="dispose">폐기</option><option value="inspect">점검</option><option value="adjust">실사 조정</option></select>
+        <select id="fSize"><option value="">전체 사이즈</option></select>
+        <input type="month" id="fMonth">
+      </div>
+      <div class="hint" id="logCount"></div>
+    </div>
+    <div class="card" id="logList"></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-set" class="hidden">
+    <div class="card">
+      <h2>사이즈 · 최소 보유량 · 시작 수량</h2>
+      <table>
+        <thead><tr><th>사이즈 이름</th><th class="num">최소 보유</th><th class="num">시작 사용가능</th><th class="num">시작 수리</th><th></th></tr></thead>
+        <tbody id="setRows"></tbody>
+      </table>
+      <div class="hint">시작 수량은 이 프로그램을 쓰기 시작할 때 갖고 있던 수량이에요. 그 뒤 변동은 입력 기록으로 자동 계산돼요. 최소 보유량보다 적으면 현황에 '부족'으로 표시돼요.</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="addSizeRow()">+ 사이즈 추가</button>
+        <button class="btn sm" onclick="saveSettings()">설정 저장</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>백업</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="exportJson()">백업 파일 받기(JSON)</button>
+        <button class="btn ghost sm" onclick="exportCsv()">이력 엑셀용(CSV)</button>
+        <label class="btn ghost sm" style="margin:0;color:var(--blue)">백업 불러오기<input type="file" accept=".json" id="importFile" class="hidden"></label>
+      </div>
+      <div class="hint">불러오기를 하면 지금 데이터가 백업 파일 내용으로 바뀌어요.</div>
+    </div>
+    <div class="card">
+      <h2>연결 정보</h2>
+      <div class="hint" id="connInfo"></div>
+    </div>
+  </section>
+</main>
+
+<nav id="nav">
+  <button data-t="home" class="on"><b>📊</b>현황</button>
+  <button data-t="input"><b>✏️</b>입력</button>
+  <button data-t="logs"><b>📋</b>이력</button>
+  <button data-t="set"><b>⚙️</b>설정</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+/* ============================================================
+   ▼ Firebase 설정 — 기존 sauna-items.html 안의 firebaseConfig 값을
+     그대로 복사해서 아래 { } 안에 붙여넣으세요.
+     비워 두면 '테스트 모드'(이 기기에만 저장)로 동작해요.
+   ============================================================ */
+const firebaseConfig = {
+  // apiKey: "...",
+  // authDomain: "test-f82c9.firebaseapp.com",
+  // projectId: "test-f82c9",
+  // storageBucket: "...",
+  // messagingSenderId: "...",
+  // appId: "..."
+};
+const COLLECTION = "lifejacket_v1";
+const DOC_ID = "live";
+/* ============================================================ */
+
+const DEFAULT_SIZES = [
+  {id:"s1", name:"유아", min:10, startOk:0, startRepair:0},
+  {id:"s2", name:"아동 S", min:20, startOk:0, startRepair:0},
+  {id:"s3", name:"아동 M", min:20, startOk:0, startRepair:0},
+  {id:"s4", name:"아동 L", min:20, startOk:0, startRepair:0},
+  {id:"s5", name:"성인 M", min:20, startOk:0, startRepair:0},
+  {id:"s6", name:"성인 L", min:20, startOk:0, startRepair:0},
+  {id:"s7", name:"성인 XL", min:10, startOk:0, startRepair:0},
+];
+const TYPE_LABEL = {buy:"구매·입고", damage:"파손", repair:"수리 완료", dispose:"폐기", inspect:"점검", adjust:"실사 조정"};
+
+let state = {sizes: DEFAULT_SIZES, logs: []};
+let store; // {add(log), addMany(logs), remove(log), setSizes(sizes), replaceAll(data)}
+
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const today = () => { const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const won = n => (Math.round(n)||0).toLocaleString("ko-KR");
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const sizeName = id => (state.sizes.find(s=>s.id===id)||{}).name || "(삭제된 사이즈)";
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1800); }
+
+/* ---------- 저장소 ---------- */
+async function initStore(){
+  const useFirebase = firebaseConfig && firebaseConfig.apiKey;
+  if(!useFirebase){
+    $("#localBanner").classList.remove("hidden");
+    $("#sync").textContent="테스트 모드";
+    $("#connInfo").innerHTML="테스트 모드 · 이 기기 브라우저(localStorage)에 저장 중";
+    const KEY="lifejacket_v1_local";
+    let saved=null; try{ saved=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
+    if(saved && saved.sizes) state=saved;
+    const persist=()=>{ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} render(); };
+    store={
+      add: async l=>{ state.logs.push(l); persist(); },
+      addMany: async ls=>{ state.logs.push(...ls); persist(); },
+      remove: async l=>{ state.logs=state.logs.filter(x=>x.id!==l.id); persist(); },
+      setSizes: async s=>{ state.sizes=s; persist(); },
+      replaceAll: async d=>{ state=d; persist(); },
+    };
+    render();
+    return;
+  }
+  const V="10.12.2";
+  const {initializeApp} = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+  const app = initializeApp(firebaseConfig, "lifejacket");
+  const db = fs.getFirestore(app);
+  const ref = fs.doc(db, COLLECTION, DOC_ID);
+  $("#connInfo").innerHTML=`Firebase 연결 · 프로젝트 <b>${esc(firebaseConfig.projectId)}</b> · 저장 위치 <b>${COLLECTION}/${DOC_ID}</b>`;
+  const snap = await fs.getDoc(ref);
+  if(!snap.exists()) await fs.setDoc(ref, {sizes: DEFAULT_SIZES, logs: [], createdAt: new Date().toISOString()});
+  fs.onSnapshot(ref, s=>{
+    const d=s.data()||{};
+    state={sizes:d.sizes||DEFAULT_SIZES, logs:d.logs||[]};
+    $("#sync").textContent = s.metadata.hasPendingWrites ? "저장 중…" : "● 실시간 연결";
+    render();
+  }, err=>{ $("#sync").textContent="연결 오류"; console.error(err); toast("Firebase 연결 오류: "+err.code); });
+  const wrap = fn => async (...a)=>{ try{ await fn(...a); }catch(e){ console.error(e); toast("저장 실패: "+(e.code||e.message)); throw e; } };
+  store={
+    add: wrap(l=>fs.updateDoc(ref,{logs:fs.arrayUnion(l)})),
+    addMany: wrap(ls=>fs.updateDoc(ref,{logs:fs.arrayUnion(...ls)})),
+    remove: wrap(l=>{ const orig=state.logs.find(x=>x.id===l.id); return fs.updateDoc(ref,{logs:fs.arrayRemove(orig)}); }),
+    setSizes: wrap(s=>fs.updateDoc(ref,{sizes:s})),
+    replaceAll: wrap(d=>fs.setDoc(ref,{sizes:d.sizes,logs:d.logs,restoredAt:new Date().toISOString()})),
+  };
+}
+
+/* ---------- 계산 ---------- */
+function stock(){
+  const m={};
+  state.sizes.forEach(s=>m[s.id]={ok:+s.startOk||0, repair:+s.startRepair||0});
+  for(const l of state.logs){
+    const s=m[l.sizeId]; if(!s) continue;
+    const q=+l.qty||0;
+    if(l.type==="buy") s.ok+=q;
+    else if(l.type==="damage"){ s.ok-=q; s.repair+=q; }
+    else if(l.type==="repair"){ s.repair-=q; s.ok+=q; }
+    else if(l.type==="dispose"){ if(l.from==="repair") s.repair-=q; else s.ok-=q; }
+    else if(l.type==="adjust") s.ok+=q;
+  }
+  return m;
+}
+const sortedLogs = () => [...state.logs].sort((a,b)=> (b.date||"").localeCompare(a.date||"") || (b.ts||0)-(a.ts||0));
+
+/* ---------- 화면 ---------- */
+function render(){
+  const st=stock();
+  let tot=0, ok=0, rep=0, low=0;
+  $("#sizeCards").innerHTML = state.sizes.map(s=>{
+    const v=st[s.id]; ok+=v.ok; rep+=v.repair; tot+=v.ok+v.repair;
+    const isLow = (+s.min||0)>0 && v.ok < +s.min; if(isLow) low++;
+    const pct = s.min>0 ? Math.min(100, Math.max(0, v.ok/(s.min*1.5)*100)) : 100;
+    return `<div class="size ${isLow?"low":""}">
+      ${isLow?'<span class="tag low">부족</span>':""}
+      <div class="n">${esc(s.name)}</div>
+      <div class="ok">${v.ok}</div>
+      <div class="meta">수리·보류 ${v.repair} · 최소 ${s.min||0}${isLow?` · <b style="color:var(--red)">${s.min-v.ok}개 모자람</b>`:""}</div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+  }).join("") || '<div class="empty">설정에서 사이즈를 추가하세요</div>';
+  $("#kTotal").innerHTML=`${tot}<span>개</span>`; $("#kOk").innerHTML=`${ok}<span>개</span>`;
+  $("#kRepair").innerHTML=`${rep}<span>개</span>`; $("#kLow").innerHTML=`${low}<span>개</span>`;
+  $("#kLowBox").classList.toggle("warn", low>0);
+
+  // 올해 요약
+  const y=String(new Date().getFullYear());
+  $("#yearTitle").textContent=`${y}년 요약`;
+  const yl=state.logs.filter(l=>(l.date||"").startsWith(y));
+  const sum=(t,f=l=>+l.qty||0)=>yl.filter(l=>l.type===t).reduce((a,l)=>a+f(l),0);
+  const buyAmt=sum("buy",l=>(+l.qty||0)*(+l.price||0));
+  const insCnt=yl.filter(l=>l.type==="inspect").length;
+  $("#yearSummary").innerHTML=`
+    <tr><td>구매·입고</td><td class="num"><b>${sum("buy")}</b>개</td><td class="num">${won(buyAmt)}원</td></tr>
+    <tr><td>파손 발생</td><td class="num"><b>${sum("damage")}</b>개</td><td class="num">수리 완료 ${sum("repair")}개</td></tr>
+    <tr><td>폐기</td><td class="num"><b>${sum("dispose")}</b>개</td><td class="num"></td></tr>
+    <tr><td>점검</td><td class="num"><b>${insCnt}</b>회</td><td class="num"></td></tr>`;
+  const rs={}; yl.filter(l=>l.type==="dispose").forEach(l=>rs[l.reason||"기타"]=(rs[l.reason||"기타"]||0)+(+l.qty||0));
+  $("#disposeReasons").innerHTML = Object.keys(rs).length ? Object.entries(rs).sort((a,b)=>b[1]-a[1]).map(([r,q])=>`<span>${esc(r)} ${q}개</span>`).join("") : '<span>올해 폐기 기록 없음</span>';
+  const lastIns = sortedLogs().find(l=>l.type==="inspect");
+  $("#lastInspect").textContent = lastIns ? `마지막 점검 ${lastIns.date}` : "점검 기록 없음";
+
+  $("#recentLogs").innerHTML = logHtml(sortedLogs().slice(0,5), false) || '<div class="empty">아직 기록이 없어요</div>';
+
+  // 셀렉트·입력표 갱신
+  const opts = state.sizes.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  $$(".sizeSelect").forEach(sel=>{ const v=sel.value; sel.innerHTML=opts; if(v) sel.value=v; });
+  const fv=$("#fSize").value; $("#fSize").innerHTML='<option value="">전체 사이즈</option>'+opts; $("#fSize").value=fv;
+  const vendors=[...new Set(state.logs.filter(l=>l.vendor).map(l=>l.vendor))];
+  $("#vendorList").innerHTML=vendors.map(v=>`<option value="${esc(v)}">`).join("");
+  if(!document.activeElement || !document.activeElement.closest("#tab-input,#tab-set")){ buildFormTables(); buildSettings(); }
+  updateHints();
+  renderLogs();
+}
+
+function logHtml(list, canDelete){
+  return list.map(l=>{
+    let body="";
+    if(l.type==="inspect"){
+      const items=(l.items||[]).filter(i=>i.checked||i.bad);
+      const chk=items.reduce((a,i)=>a+(+i.checked||0),0), bad=items.reduce((a,i)=>a+(+i.bad||0),0);
+      body=`<span class="tag t-inspect">점검</span> ${chk}개 점검 · 이상 <b>${bad}</b>개
+        <div class="m">${items.map(i=>`${esc(sizeName(i.sizeId))} ${i.checked}${i.bad?`(이상 ${i.bad})`:""}`).join(" · ")}${l.memo?" · "+esc(l.memo):""}</div>`;
+    }else{
+      const sign = l.type==="adjust" ? (l.qty>0?"+":"") : "";
+      let extra=[];
+      if(l.type==="buy"){ if(l.price) extra.push(`${won(l.price)}원 × ${l.qty} = ${won(l.price*l.qty)}원`); if(l.vendor) extra.push(esc(l.vendor)); }
+      if(l.type==="damage"&&l.reason) extra.push(esc(l.reason));
+      if(l.type==="dispose") extra.push((l.from==="repair"?"수리·보류에서":"사용 가능에서")+" · "+esc(l.reason||""));
+      if(l.auto) extra.push("점검에서 자동");
+      if(l.memo) extra.push(esc(l.memo));
+      body=`<span class="tag t-${l.type}">${TYPE_LABEL[l.type]}</span> ${esc(sizeName(l.sizeId))} <b>${sign}${l.qty}</b>개
+        ${extra.length?`<div class="m">${extra.join(" · ")}</div>`:""}`;
+    }
+    return `<div class="log"><div class="d">${(l.date||"").slice(2).replace(/-/g,".")}</div><div class="b">${body}</div>
+      ${canDelete?`<button class="x" title="삭제" data-del="${l.id}">✕</button>`:""}</div>`;
+  }).join("");
+}
+
+function renderLogs(){
+  const t=$("#fType").value, s=$("#fSize").value, m=$("#fMonth").value;
+  const list=sortedLogs().filter(l=>(!t||l.type===t)&&(!m||(l.date||"").startsWith(m))&&
+    (!s||l.sizeId===s||(l.type==="inspect"&&(l.items||[]).some(i=>i.sizeId===s&&(i.checked||i.bad)))));
+  $("#logCount").textContent=`${list.length}건`;
+  $("#logList").innerHTML=logHtml(list,true)||'<div class="empty">조건에 맞는 기록이 없어요</div>';
+}
+
+function lastPrice(sizeId){ const b=sortedLogs().find(l=>l.type==="buy"&&l.sizeId===sizeId&&l.price); return b?b.price:""; }
+
+function buildFormTables(){
+  const st=stock();
+  $("#buyRows").innerHTML=state.sizes.map(s=>`<tr><td>${esc(s.name)}</td>
+    <td><input type="number" min="0" inputmode="numeric" data-buyq="${s.id}" placeholder="0" style="text-align:right"></td>
+    <td><input type="number" min="0" inputmode="numeric" data-buyp="${s.id}" value="${lastPrice(s.id)}" placeholder="단가" style="text-align:right"></td></tr>`).join("");
+  $("#insRows").innerHTML=state.sizes.map(s=>`<tr><td>${esc(s.name)}</td>
+    <td><input type="number" min="0" inputmode="numeric" data-insc="${s.id}" value="${Math.max(0,st[s.id].ok)}" style="text-align:right"></td>
+    <td><input type="number" min="0" inputmode="numeric" data-insb="${s.id}" placeholder="0" style="text-align:right"></td></tr>`).join("");
+  $("#adjRows").innerHTML=state.sizes.map(s=>`<tr><td>${esc(s.name)}</td><td class="num">${st[s.id].ok}</td>
+    <td><input type="number" min="0" inputmode="numeric" data-adj="${s.id}" data-cur="${st[s.id].ok}" style="text-align:right"></td>
+    <td class="num" data-adjd="${s.id}">–</td></tr>`).join("");
+  updateBuyTotal();
+}
+
+function buildSettings(){
+  $("#setRows").innerHTML=state.sizes.map(s=>setRow(s)).join("");
+}
+function setRow(s){
+  return `<tr data-sid="${s.id}">
+    <td><input data-k="name" value="${esc(s.name)}"></td>
+    <td><input data-k="min" type="number" min="0" inputmode="numeric" value="${s.min||0}" style="text-align:right;width:70px"></td>
+    <td><input data-k="startOk" type="number" min="0" inputmode="numeric" value="${s.startOk||0}" style="text-align:right;width:70px"></td>
+    <td><input data-k="startRepair" type="number" min="0" inputmode="numeric" value="${s.startRepair||0}" style="text-align:right;width:60px"></td>
+    <td><button class="x" style="border:0;background:none;color:#b3bdc9;font-size:18px;cursor:pointer" data-rmsize="${s.id}">✕</button></td></tr>`;
+}
+
+function updateBuyTotal(){
+  let q=0,a=0; state.sizes.forEach(s=>{ const qq=+($(`[data-buyq="${s.id}"]`)?.value)||0, p=+($(`[data-buyp="${s.id}"]`)?.value)||0; q+=qq; a+=qq*p; });
+  $("#buyTotal").innerHTML = q? `합계 <b>${q}개 · ${won(a)}원</b>` : "";
+}
+function updateHints(){
+  const st=stock();
+  const ds=$("#dmgSize").value, k=dmgKind;
+  if(ds&&st[ds]) $("#dmgHint").textContent = k==="damage" ? `${sizeName(ds)} 사용 가능 ${st[ds].ok}개 → 파손 수량만큼 수리·보류로 옮겨요` : `${sizeName(ds)} 수리·보류 ${st[ds].repair}개 → 수리 완료 수량만큼 사용 가능으로 돌려요`;
+  const ps=$("#dspSize").value, from=$("#dspFrom").value;
+  if(ps&&st[ps]) $("#dspHint").textContent = `${sizeName(ps)} ${from==="repair"?"수리·보류":"사용 가능"} ${from==="repair"?st[ps].repair:st[ps].ok}개에서 빼요`;
+}
+
+/* ---------- 저장 동작 ---------- */
+const need = (v,msg)=>{ if(!v){ toast(msg); return false; } return true; };
+
+window.saveBuy = async ()=>{
+  const date=$("#buyDate").value, vendor=$("#buyVendor").value.trim(), memo=$("#buyMemo").value.trim();
+  if(!need(date,"입고일을 넣어 주세요")) return;
+  const ts=Date.now();
+  const logs=state.sizes.map(s=>({qty:+($(`[data-buyq="${s.id}"]`).value)||0, price:+($(`[data-buyp="${s.id}"]`).value)||0, sizeId:s.id}))
+    .filter(r=>r.qty>0).map(r=>({id:uid(),type:"buy",date,ts,vendor,memo,...r}));
+  if(!need(logs.length,"수량을 하나 이상 넣어 주세요")) return;
+  await store.addMany(logs);
+  $$("[data-buyq]").forEach(i=>i.value=""); $("#buyMemo").value=""; updateBuyTotal();
+  toast(`입고 ${logs.reduce((a,l)=>a+l.qty,0)}개 저장했어요`);
+};
+
+let dmgKind="damage";
+window.saveDamage = async ()=>{
+  const date=$("#dmgDate").value, sizeId=$("#dmgSize").value, qty=+$("#dmgQty").value||0;
+  if(!need(date,"날짜를 넣어 주세요")||!need(qty>0,"수량을 넣어 주세요")) return;
+  const st=stock()[sizeId], have = dmgKind==="damage"?st.ok:st.repair;
+  if(qty>have && !confirm(`현재 ${dmgKind==="damage"?"사용 가능":"수리·보류"} 수량(${have}개)보다 많아요. 그래도 저장할까요?`)) return;
+  const l={id:uid(),type:dmgKind,date,ts:Date.now(),sizeId,qty,memo:$("#dmgMemo").value.trim()};
+  if(dmgKind==="damage") l.reason=$("#dmgReason").value;
+  await store.add(l);
+  $("#dmgQty").value=""; $("#dmgMemo").value="";
+  toast(dmgKind==="damage"?"파손 기록 저장했어요":"수리 완료 저장했어요");
+};
+
+window.saveDispose = async ()=>{
+  const date=$("#dspDate").value, sizeId=$("#dspSize").value, qty=+$("#dspQty").value||0, from=$("#dspFrom").value;
+  if(!need(date,"폐기일을 넣어 주세요")||!need(qty>0,"수량을 넣어 주세요")) return;
+  const st=stock()[sizeId], have = from==="repair"?st.repair:st.ok;
+  if(qty>have && !confirm(`현재 ${from==="repair"?"수리·보류":"사용 가능"} 수량(${have}개)보다 많아요. 그래도 저장할까요?`)) return;
+  await store.add({id:uid(),type:"dispose",date,ts:Date.now(),sizeId,qty,from,reason:$("#dspReason").value,memo:$("#dspMemo").value.trim()});
+  $("#dspQty").value=""; $("#dspMemo").value="";
+  toast("폐기 기록 저장했어요");
+};
+
+window.saveInspect = async ()=>{
+  const date=$("#insDate").value, memo=$("#insMemo").value.trim();
+  if(!need(date,"점검일을 넣어 주세요")) return;
+  const items=state.sizes.map(s=>({sizeId:s.id, checked:+$(`[data-insc="${s.id}"]`).value||0, bad:+$(`[data-insb="${s.id}"]`).value||0})).filter(i=>i.checked||i.bad);
+  if(!need(items.length,"점검 수량을 넣어 주세요")) return;
+  const ts=Date.now();
+  const logs=[{id:uid(),type:"inspect",date,ts,memo,items}];
+  if($("#insMove").checked) items.filter(i=>i.bad>0).forEach(i=>logs.push({id:uid(),type:"damage",date,ts:ts+1,sizeId:i.sizeId,qty:i.bad,reason:"점검 이상",auto:true,memo:""}));
+  await store.addMany(logs);
+  $$("[data-insb]").forEach(i=>i.value=""); $("#insMemo").value="";
+  const bad=items.reduce((a,i)=>a+i.bad,0);
+  toast(`점검 저장 · 이상 ${bad}개${bad&&$("#insMove").checked?" 수리·보류로 이동":""}`);
+};
+
+window.saveAdjust = async ()=>{
+  const date=$("#adjDate").value, memo=$("#adjMemo").value.trim();
+  if(!need(date,"실사일을 넣어 주세요")) return;
+  const ts=Date.now();
+  const logs=$$("[data-adj]").filter(i=>i.value!=="").map(i=>({sizeId:i.dataset.adj, qty:(+i.value)-(+i.dataset.cur)}))
+    .filter(r=>r.qty!==0).map(r=>({id:uid(),type:"adjust",date,ts,memo,...r}));
+  if(!logs.length){ toast("차이가 있는 사이즈가 없어요"); return; }
+  await store.addMany(logs);
+  $("#adjMemo").value=""; buildFormTables();
+  toast(`${logs.length}개 사이즈 실사 반영했어요`);
+};
+
+window.addSizeRow = ()=>{ $("#setRows").insertAdjacentHTML("beforeend", setRow({id:"s"+uid(),name:"",min:0,startOk:0,startRepair:0})); $("#setRows tr:last-child input").focus(); };
+window.saveSettings = async ()=>{
+  const sizes=$$("#setRows tr").map(tr=>{ const g=k=>tr.querySelector(`[data-k="${k}"]`).value;
+    return {id:tr.dataset.sid, name:g("name").trim(), min:+g("min")||0, startOk:+g("startOk")||0, startRepair:+g("startRepair")||0}; }).filter(s=>s.name);
+  if(!need(sizes.length,"사이즈를 하나 이상 넣어 주세요")) return;
+  document.activeElement?.blur();
+  await store.setSizes(sizes);
+  toast("설정 저장했어요");
+};
+
+/* ---------- 백업 ---------- */
+function download(name, text, type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+window.exportJson = ()=> download(`구명자켓_백업_${today()}.json`, JSON.stringify(state,null,2), "application/json");
+window.exportCsv = ()=>{
+  const rows=[["날짜","구분","사이즈","수량","단가","금액","구매처","사유","메모"]];
+  sortedLogs().reverse().forEach(l=>{
+    if(l.type==="inspect") (l.items||[]).forEach(i=>rows.push([l.date,"점검",sizeName(i.sizeId),i.checked,"","","",`이상 ${i.bad}`,l.memo||""]));
+    else rows.push([l.date,TYPE_LABEL[l.type],sizeName(l.sizeId),l.qty,l.price||"",l.price?l.price*l.qty:"",l.vendor||"",l.type==="dispose"?`${l.from==="repair"?"수리·보류":"사용가능"}/${l.reason||""}`:(l.reason||""),l.memo||""]);
+  });
+  const csv="﻿"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  download(`구명자켓_이력_${today()}.csv`, csv, "text/csv");
+};
+$("#importFile").addEventListener("change", async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ const d=JSON.parse(await f.text()); if(!Array.isArray(d.sizes)||!Array.isArray(d.logs)) throw 0;
+    if(!confirm(`사이즈 ${d.sizes.length}개, 기록 ${d.logs.length}건으로 바꿀까요? 지금 데이터는 덮어써져요.`)) return;
+    await store.replaceAll({sizes:d.sizes,logs:d.logs}); toast("백업을 불러왔어요");
+  }catch(err){ toast("백업 파일 형식이 맞지 않아요"); }
+  e.target.value="";
+});
+
+/* ---------- 이벤트 ---------- */
+window.go = t=>{ $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t)); $$("main>section").forEach(s=>s.classList.toggle("hidden",s.id!=="tab-"+t)); if(t==="input"){buildFormTables();} if(t==="set") buildSettings(); window.scrollTo(0,0); };
+$$("nav button").forEach(b=>b.onclick=()=>go(b.dataset.t));
+$$("#formSeg button").forEach(b=>b.onclick=()=>{ $$("#formSeg button").forEach(x=>x.classList.toggle("on",x===b)); $$(".form").forEach(f=>f.classList.toggle("hidden",f.id!=="f-"+b.dataset.f)); buildFormTables(); updateHints(); });
+$$("#dmgSeg button").forEach(b=>b.onclick=()=>{ dmgKind=b.dataset.k; $$("#dmgSeg button").forEach(x=>x.classList.toggle("on",x===b)); $("#dmgReasonBox").style.visibility=dmgKind==="damage"?"visible":"hidden"; updateHints(); });
+["#dmgSize","#dspSize","#dspFrom"].forEach(s=>$(s).addEventListener("change",updateHints));
+document.addEventListener("input",e=>{
+  if(e.target.matches("[data-buyq],[data-buyp]")) updateBuyTotal();
+  if(e.target.matches("[data-adj]")){ const i=e.target, c=$(`[data-adjd="${i.dataset.adj}"]`); if(i.value===""){c.textContent="–";return;} const d=(+i.value)-(+i.dataset.cur); c.innerHTML=d===0?"0":`<b style="color:${d<0?"var(--red)":"var(--blue)"}">${d>0?"+":""}${d}</b>`; }
+});
+document.addEventListener("click",async e=>{
+  const del=e.target.closest("[data-del]");
+  if(del){ const l=state.logs.find(x=>x.id===del.dataset.del); if(l&&confirm("이 기록을 삭제할까요? 수량이 다시 계산돼요.")){ await store.remove(l); toast("삭제했어요"); } }
+  const rm=e.target.closest("[data-rmsize]");
+  if(rm){ const id=rm.dataset.rmsize; const used=state.logs.some(l=>l.sizeId===id||(l.items||[]).some(i=>i.sizeId===id));
+    if(used && !confirm("이 사이즈에 기록이 있어요. 목록에서 빼면 현황에 안 보이게 돼요. 뺄까요? ('설정 저장'을 눌러야 반영돼요)")) return;
+    rm.closest("tr").remove(); }
+});
+["#fType","#fSize","#fMonth"].forEach(s=>$(s).addEventListener("change",renderLogs));
+["#buyDate","#dmgDate","#dspDate","#insDate","#adjDate"].forEach(s=>$(s).value=today());
+
+initStore().catch(err=>{ console.error(err); $("#sync").textContent="연결 오류"; toast("Firebase를 불러오지 못했어요"); });
+</script>
+</body>
+</html>

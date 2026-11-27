@@ -254,7 +254,7 @@
 
     <!-- 구매 -->
     <div class="card form" id="f-buy">
-      <h2>구매·입고</h2>
+      <h2>구매·입고 <small id="buyModeHint"></small></h2>
       <div class="row2">
         <div><label>입고일</label><input type="date" id="buyDate"></div>
         <div><label>협찬사</label><select id="buyGroup" class="groupSelect"></select></div>
@@ -264,6 +264,7 @@
         <div><label>메모</label><input id="buyMemo" placeholder="예: 시즌 전 보충"></div>
       </div>
       <datalist id="vendorList"></datalist>
+      <label class="chk" style="background:var(--blue-soft);padding:10px;border-radius:10px"><input type="checkbox" id="buyNoStock"> <span><b>이미 재고에 포함된 수량이에요</b> (재고는 그대로 두고 구매 날짜·수량·단가만 기록)</span></label>
       <label>사이즈별 수량 · 단가(부가세 포함)</label>
       <table><thead><tr><th>사이즈</th><th class="num">수량</th><th class="num">단가(원)</th></tr></thead><tbody id="buyRows"></tbody></table>
       <div class="hint">단가는 지난 구매 단가가 미리 채워져요. 수량을 넣은 사이즈만 저장돼요. 새 협찬사나 사이즈는 ⚙️ 설정에서 먼저 추가하세요.</div>
@@ -381,7 +382,7 @@ const SEED = [
   ["G마켓","영유아","단체용",300], ["G마켓","35kg","공용",537], ["G마켓","55kg","공용",578], ["G마켓","75kg","공용",299], ["G마켓","95kg","공용",300],
   ["씽크빅","영유아","일반",298], ["씽크빅","35kg","일반",586], ["씽크빅","55kg","일반",594], ["씽크빅","75kg","일반",297], ["씽크빅","95kg","일반",297],
   ["프리드","영유아","일반",300], ["프리드","35kg","일반",300], ["프리드","55kg","일반",200], ["프리드","75kg","일반",200], ["프리드","95kg","일반",200],
-  ["아레나","영유아","일반",0], ["아레나","35kg","일반",400], ["아레나","55kg","일반",0], ["아레나","75kg","일반",0], ["아레나","95kg","일반",0],
+  ["아레나","영유아","일반",0], ["아레나","35kg","일반",0], ["아레나","55kg","일반",400], ["아레나","75kg","일반",0], ["아레나","95kg","일반",0],
 ];
 const DEFAULT_ITEMS = SEED.map((r,i)=>({id:"i"+(i+1), group:r[0], size:r[1], use:r[2], min:0, startOk:r[3], startRepair:0}));
 const GROUP_COLORS = ["#1f9d63","#e0761c","#7a3fe0","#2563eb","#0ea5a4","#d6457a","#8a6d1f","#475569"];
@@ -405,6 +406,26 @@ const itemById = id => state.items.find(i=>i.id===id);
 const itemLabel = id => { const i=itemById(id); return i ? `${i.group} ${i.size}·${i.use}` : "(삭제된 품목)"; };
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1800); }
 
+/* ---------- 일회성 데이터 보정 (v3) ----------
+   · 아레나 400개를 35kg → 55kg 으로 정정
+   · 프리드·아레나 2026-06-01 구매 단가 기록 (재고 수량은 변경하지 않음)  */
+const MIG_ID = "v3";
+const MIG_BUYS = [ // [협찬사, 사이즈, 수량, 단가(부가세 포함)]
+  ["프리드","영유아",300,21400], ["프리드","35kg",300,22300], ["프리드","55kg",200,23100], ["프리드","75kg",200,26900], ["프리드","95kg",200,31200],
+  ["아레나","55kg",400,23100],
+];
+function migrate(items, logs){
+  let changed=false; items=items.map(i=>({...i}));
+  const f=(g,z)=>items.find(i=>i.group===g&&i.size===z);
+  const a35=f("아레나","35kg"), a55=f("아레나","55kg");
+  if(a35 && a55 && (+a35.startOk||0)===400 && (+a55.startOk||0)===0){ a35.startOk=0; a55.startOk=400; changed=true; }
+  const have=new Set(logs.map(l=>l.id)); const add=[];
+  MIG_BUYS.forEach(([g,z,qty,price])=>{ const it=f(g,z); if(!it) return; const id=`mig-${MIG_ID}-${it.id}`;
+    if(have.has(id)) return;
+    add.push({id, type:"buy", date:"2026-06-01", ts:1780272000000, itemId:it.id, qty, price, vendor:"", memo:"기존 재고 단가 기록", noStock:true}); });
+  return {items, add, changed: changed||add.length>0};
+}
+
 /* ---------- 저장소 ---------- */
 async function initStore(){
   const useFirebase = firebaseConfig && firebaseConfig.apiKey;
@@ -415,6 +436,7 @@ async function initStore(){
     const KEY="lifejacket_v2_local";
     let saved=null; try{ saved=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
     if(saved && Array.isArray(saved.items)) state=saved;
+    if(!(state.migrations||[]).includes(MIG_ID)){ const m=migrate(state.items,state.logs); state={...state, items:m.items, logs:state.logs.concat(m.add), migrations:(state.migrations||[]).concat(MIG_ID)}; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
     const persist=()=>{ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} render(); };
     store={
       addMany: async ls=>{ state.logs.push(...ls); persist(); },
@@ -435,6 +457,14 @@ async function initStore(){
   const snap = await fs.getDoc(ref);
   if(!snap.exists()) await fs.setDoc(ref, {items: DEFAULT_ITEMS, logs: [], createdAt: new Date().toISOString()});
   else if(!Array.isArray(snap.data().items)) await fs.updateDoc(ref, {items: DEFAULT_ITEMS, logs: [], sizes: fs.deleteField()}); // 1차 버전 데이터 정리
+  { const d0=(await fs.getDoc(ref)).data()||{};
+    if(!(d0.migrations||[]).includes(MIG_ID)){
+      const m=migrate(Array.isArray(d0.items)?d0.items:DEFAULT_ITEMS, d0.logs||[]);
+      const upd={migrations:fs.arrayUnion(MIG_ID)};
+      if(m.changed) upd.items=m.items;
+      if(m.add.length) upd.logs=fs.arrayUnion(...m.add);
+      try{ await fs.updateDoc(ref, upd); }catch(e){ console.error(e); }
+    } }
   fs.onSnapshot(ref, s=>{
     const d=s.data()||{};
     state={items:Array.isArray(d.items)?d.items:DEFAULT_ITEMS, logs:d.logs||[]};
@@ -457,7 +487,7 @@ function stock(){
   for(const l of state.logs){
     const s=m[l.itemId]; if(!s) continue;
     const q=+l.qty||0;
-    if(l.type==="buy") s.ok+=q;
+    if(l.type==="buy"){ if(!l.noStock) s.ok+=q; }
     else if(l.type==="dispose") s.ok-=q;
     else if(l.type==="adjust") s.ok+=q;
   }
@@ -543,7 +573,7 @@ function logHtml(list, canDelete){
     }else{
       const sign = l.type==="adjust" ? (l.qty>0?"+":"") : "";
       const extra=[];
-      if(l.type==="buy"){ if(l.price) extra.push(`${won(l.price)}원 × ${num(l.qty)} = ${won(l.price*l.qty)}원`); if(l.vendor) extra.push(esc(l.vendor)); }
+      if(l.type==="buy"){ if(l.price) extra.push(`${won(l.price)}원 × ${num(l.qty)} = ${won(l.price*l.qty)}원`); if(l.vendor) extra.push(esc(l.vendor)); if(l.noStock) extra.push("재고 미반영(기존 수량 포함)"); }
       if(l.type==="damage"&&l.reason) extra.push(esc(l.reason));
       if(l.type==="dispose") extra.push(esc(l.reason||""));
       if(l.auto) extra.push("점검에서 자동");
@@ -625,13 +655,13 @@ const need = (v,msg)=>{ if(!v){ toast(msg); return false; } return true; };
 window.saveBuy = async ()=>{
   const date=$("#buyDate").value, vendor=$("#buyVendor").value.trim(), memo=$("#buyMemo").value.trim();
   if(!need(date,"입고일을 넣어 주세요")) return;
-  const ts=Date.now();
+  const ts=Date.now(), noStock=$("#buyNoStock").checked;
   const logs=$$("[data-buyq]").map(i=>({itemId:i.dataset.buyq, qty:+i.value||0, price:+($(`[data-buyp="${i.dataset.buyq}"]`).value)||0}))
-    .filter(r=>r.qty>0).map(r=>({id:uid(),type:"buy",date,ts,vendor,memo,...r}));
+    .filter(r=>r.qty>0).map(r=>({id:uid(),type:"buy",date,ts,vendor,memo,...(noStock?{noStock:true}:{}),...r}));
   if(!need(logs.length,"수량을 하나 이상 넣어 주세요")) return;
   await store.addMany(logs);
   $$("[data-buyq]").forEach(i=>i.value=""); $("#buyMemo").value=""; updateBuyTotal();
-  toast(`입고 ${num(logs.reduce((a,l)=>a+l.qty,0))}개 저장했어요`);
+  toast(noStock?`구매 내역 ${num(logs.reduce((a,l)=>a+l.qty,0))}개 저장 (재고는 그대로)`:`입고 ${num(logs.reduce((a,l)=>a+l.qty,0))}개 저장했어요`);
 };
 window.saveDispose = async ()=>{
   const date=$("#dspDate").value, itemId=$("#dspItem").value, qty=+$("#dspQty").value||0;
@@ -703,7 +733,7 @@ window.exportCsv = ()=>{
   const rows=[["날짜","구분","품목","수량","단가","금액","구매처","사유","메모"]];
   sortedLogs().reverse().forEach(l=>{
     if(l.type==="inspect") (l.items||[]).forEach(i=>rows.push([l.date,"점검",itemLabel(i.itemId),i.checked,"","","",`이상 ${i.bad}`,l.memo||""]));
-    else rows.push([l.date,TYPE_LABEL[l.type],itemLabel(l.itemId),l.qty,l.price||"",l.price?l.price*l.qty:"",l.vendor||"",l.reason||"",l.memo||""]);
+    else rows.push([l.date,TYPE_LABEL[l.type],itemLabel(l.itemId),l.qty,l.price||"",l.price?l.price*l.qty:"",l.vendor||"",l.noStock?"재고 미반영":(l.reason||""),l.memo||""]);
   });
   download(`구명자켓_이력_${today()}.csv`, toCsv(rows), "text/csv");
 };
@@ -722,6 +752,8 @@ $("#importFile").addEventListener("change", async e=>{
 });
 
 /* ---------- 이벤트 ---------- */
+function updateBuyMode(){ const n=$("#buyNoStock").checked; $("#buyModeHint").textContent=n?"재고 변동 없음 · 기록만":""; $("#f-buy .btn.full").textContent=n?"구매 내역 저장 (재고 그대로)":"입고 저장"; }
+$("#buyNoStock").addEventListener("change",updateBuyMode);
 window.go = t=>{ $$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t)); $$("main>section").forEach(s=>s.classList.toggle("hidden",s.id!=="tab-"+t)); if(t==="input") buildFormTables(); if(t==="set") buildSettings(); if(t==="report") renderReport(); window.scrollTo(0,0); };
 $$("nav button").forEach(b=>b.onclick=()=>go(b.dataset.t));
 $$("#viewSeg button").forEach(b=>b.onclick=()=>{ viewMode=b.dataset.v; $$("#viewSeg button").forEach(x=>x.classList.toggle("on",x===b)); $("#viewGroup").classList.toggle("hidden",viewMode!=="group"); $("#viewSize").classList.toggle("hidden",viewMode!=="size"); });

@@ -262,6 +262,15 @@
   .rt tr.tot td{background:#f3f8f7;font-weight:800}
   .rt td.zero{color:#aaa}
   .rnote{font-size:11px;color:#555;margin-top:6px;line-height:1.5}
+  /* PC 화면 크기: 넓은 화면(1100px 이상)에서만 확대 · 휴대폰·태블릿과 인쇄는 그대로 */
+  .zoomctl{display:none;gap:2px;background:#eef4f2;border-radius:10px;padding:3px;flex:0 0 auto}
+  .zoomctl button{border:0;background:none;font:inherit;color:var(--sub);border-radius:7px;padding:3px 8px;cursor:pointer;line-height:1.2}
+  .zoomctl button.on{background:#fff;color:var(--main);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  @media screen and (min-width:1100px){
+    .zoomctl{display:flex}
+    html.z1{zoom:1.12} html.z2{zoom:1.25}
+  }
+  @media print{html{zoom:1!important}}
   @media print{
     @page{size:A4;margin:12mm}
     body{background:#fff;padding:0}
@@ -310,6 +319,7 @@
       <button data-tab="report"><b>📄</b>보고서</button>
       <button data-tab="set"><b>⚙️</b>설정</button>
     </nav>
+    <span class="zoomctl" title="PC 화면 글자 크기 (휴대폰에는 영향 없음)"><button data-zoom="0" style="font-size:12px">가</button><button data-zoom="1" style="font-size:14px">가</button><button data-zoom="2" style="font-size:16px">가</button></span>
     <span id="sync">연결 중…</span>
   </div>
 </header>
@@ -346,6 +356,9 @@ let tab='home', inSeg='buy', itemCat='', showOff=false, logYear=0, logMon='', lo
 let repSeg='month', repYm='', planYm='', planSrc='auto', planManual='', annYear=0, anaItem='', yearSel=0, countYm='';
 let buy=null, prefillBulk=null, detailId=null;
 const pref=(k,v)=>{try{if(v===undefined)return localStorage.getItem('sauna_pref_'+k);localStorage.setItem('sauna_pref_'+k,v)}catch(e){return null}};
+function setZoom(z){z=['0','1','2'].includes(String(z))?String(z):'1';const h=document.documentElement;h.classList.remove('z1','z2');if(z!=='0')h.classList.add('z'+z);
+  document.querySelectorAll('[data-zoom]').forEach(b=>b.classList.toggle('on',b.dataset.zoom===z))}
+setZoom(pref('zoom')??'1');
 let lastItem=pref('last')||'';
 
 /* ---------- 도구 ---------- */
@@ -1107,6 +1120,7 @@ function armOrRun(t,fn,label){if(t.dataset.armed)fn();else{t.dataset.armed=1;t.t
 
 /* ---------- 이벤트 ---------- */
 document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab],tr[data-item]');if(!t||!S)return;const d=t.dataset;
+  if(d.zoom!==undefined){setZoom(d.zoom);pref('zoom',d.zoom);return}
   if(d.tab){go(d.tab);return}
   if(d.inseg){inSeg=d.inseg;if(inSeg!=='bulk')prefillBulk=null;render();return}
   if(d.rseg){repSeg=d.rseg;render();return}

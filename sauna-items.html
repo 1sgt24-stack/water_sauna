@@ -491,7 +491,9 @@ function lastLog(id,until){return sortLogs(S.stockLogs.filter(l=>l.itemId===id&&
 function countOf(id,ym){const l=sortLogs(S.stockLogs.filter(x=>x.itemId===id&&ymOf(x.date)===ym)).pop();return l?Number(l.qty):null}
 function stockAt(id,date){const l=lastLog(id,date);if(!l)return null;return Number(l.qty)+S.purchases.filter(p=>p.itemId===id&&p.date>l.date&&p.date<=date).reduce((s,p)=>s+p.qty,0)}
 const stockNow=id=>stockAt(id,'9999-12-31');
-function used(id,ym){const a=countOf(id,addYm(ym,-1)),b=countOf(id,ym);if(a!=null&&b!=null)return a+boughtQty(id,ym)-b;const u=S.usage[ym];return u&&u[id]!=null?Number(u[id]):null}
+function monthLog(id,ym){return sortLogs(S.stockLogs.filter(x=>x.itemId===id&&ymOf(x.date)===ym)).pop()||null}
+function used(id,ym){const A=monthLog(id,addYm(ym,-1)),B=monthLog(id,ym);
+  if(A&&B)return Number(A.qty)+S.purchases.filter(p=>p.itemId===id&&p.date>A.date&&p.date<=B.date).reduce((s,p)=>s+p.qty,0)-Number(B.qty);const u=S.usage[ym];return u&&u[id]!=null?Number(u[id]):null}
 function avgUse(id,base){base=base||curYm();const v=[];for(let i=0;i<8&&v.length<3;i++){const u=used(id,addYm(base,-i));if(u!=null)v.push(u)}return v.length?v.reduce((a,b)=>a+b,0)/v.length:0}
 function phStats(id){const ms=Object.keys(S.visitors).filter(m=>S.visitors[m]>0&&used(id,m)!=null).sort();if(!ms.length)return{n:0,ph:null,recent:null};
   const su=a=>a.reduce((s,m)=>s+used(id,m),0),sv=a=>a.reduce((s,m)=>s+S.visitors[m],0),r=ms.slice(-3);return{n:ms.length,ph:su(ms)/sv(ms),recent:su(r)/sv(r)}}
@@ -615,9 +617,9 @@ function logRow(a){const it=itemById(a.itemId)||{name:'(삭제된 품목)',unit:
 
 /* ===== 입력 ===== */
 function vInput(){
-  const segs=[['buy','🛒 구매'],['bulk','📑 여러 품목 한 번에'],['count','📦 월말 재고'],['year','🎯 입장객·예산']];
+  const segs=[['buy','🛒 구매'],['bulk','📑 여러 품목 한 번에'],['count','📦 월말 재고'],['year','🎯 입장객·예산'],['excel','📥 엑셀 불러오기']];
   return `<div class="seg" style="margin-top:16px">${segs.map(([k,l])=>`<button class="${inSeg===k?'on':''}" data-inseg="${k}">${l}</button>`).join('')}</div>`+
-    ({buy:inBuy,bulk:inBulk,count:inCount,year:inYear}[inSeg])()}
+    ({buy:inBuy,bulk:inBulk,count:inCount,year:inYear,excel:inExcel}[inSeg])()}
 function buyFormHtml(p,ex){
   const list=active();const it=itemById(buy.itemId);
   const pick=ex&&!list.some(i=>i.id===it.id)?[it,...list]:list;
@@ -696,6 +698,71 @@ function inYear(){if(!yearSel)yearSel=new Date().getFullYear();const Y=yearSel,m
       <td class="num" style="color:var(--sub)">${spend(m)?won(spend(m)):'-'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>합계</td><td class="num">${won(tot('targets'))}</td><td class="num">${won(tot('visitors'))}</td><td class="num">${won(tot('budgets'))}</td><td class="num">${won(ms.reduce((s,m)=>s+spend(m),0))}</td></tr></tfoot></table></div>
     <div class="hint">· 목표 입장객·예산은 연초에 한 번, 실적 입장객은 매달 초에 지난달 칸만 채우세요.<br>· 엑셀에서 12개월 숫자를 복사해 1월 칸에 붙여넣으면 아래로 한 번에 채워져요. 입력 후 꼭 <b>저장</b>을 누르세요.<br>· 지난 해(예: 2025년) 실적을 넣어두면 연간 구매계획이 같은 달 기준으로 더 정확해져요.</div></div>`}
+/* ===== 엑셀 불러오기: 소모품 입출고 엑셀(일자·입고 수량·불출 수량·남은 수량 블록)을 읽어 기간 안의 기록을 엑셀 기준으로 맞춤 ===== */
+let xlPrev=null,xlBusy=false;
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+async function ensureXLSX(){if(!window.XLSX)await loadScript(XLSX_URL,15000)}
+const nzName=x=>String(x||'').replace(/\s|대용량|\(.*?\)/g,'');
+function serialToDate(v){if(typeof v==='number'&&v>20000){const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate())}
+  if(typeof v==='string'){const m=v.trim().match(/^(\d{4})[-./년\s]+(\d{1,2})[-./월\s]+(\d{1,2})/);if(m)return m[1]+'-'+pad(+m[2])+'-'+pad(+m[3])}return null}
+const numOr0=v=>typeof v==='number'?v:(typeof v==='string'&&v.trim()!==''&&!isNaN(v.replace(/,/g,''))?Number(v.replace(/,/g,'')):0);
+async function readExcel(files){
+  await ensureXLSX();const blocks=[];
+  for(const f of files){const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    for(const sn of wb.SheetNames){const g=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
+      for(let r=0;r<g.length;r++)for(let c=0;c<(g[r]||[]).length;c++){
+        const h=g[r][c];if(typeof h!=='string'||h.replace(/\s/g,'')!=='일자')continue;
+        let name=null;for(let k=1;k<=3&&r-k>=0&&!name;k++){const v=(g[r-k]||[])[c];if(typeof v==='string'&&v.trim())name=v.trim()}
+        let opening=null,openYear=null;for(let cc=c+4;cc<=c+8;cc++){const v=(g[r]||[])[cc];
+          if(typeof v==='string'&&/\d{4}\s*년/.test(v)){openYear=+v.match(/(\d{4})/)[1];for(let c2=cc+1;c2<=cc+2;c2++){const w=(g[r]||[])[c2];if(typeof w==='number'){opening=w;break}}break}}
+        const rows=[];for(let rr=r+1;rr<g.length;rr++){const row=g[rr]||[];const d=serialToDate(row[c]);const iq=numOr0(row[c+1]),oq=numOr0(row[c+2]);
+          if(!d){continue}if(!iq&&!oq)continue;rows.push({date:d,inQ:iq,outQ:oq})}
+        if(!rows.length)continue;rows.sort((a,b)=>a.date.localeCompare(b.date));
+        const startYear=openYear?openYear+1:+rows[0].date.slice(0,4);
+        blocks.push({file:f.name,sheet:sn,name:name||'(이름 없음)',opening:opening??0,hasOpening:opening!=null,startYear,rows})}}}
+  if(!blocks.length)throw new Error('일자·입고 수량·불출 수량 표를 찾지 못했어요');
+  const lastDate=blocks.reduce((m,b)=>b.rows[b.rows.length-1].date>m?b.rows[b.rows.length-1].date:m,'');
+  const minYear=Math.min(...blocks.map(b=>b.startYear)),rangeStart=minYear+'-01-01',prevEnd=(minYear-1)+'-12-31';
+  const groups={};blocks.forEach(b=>{const k=nzName(b.name);(groups[k]=groups[k]||{name:b.name,blocks:[]}).blocks.push(b)});
+  const items=Object.values(groups).map(gp=>{gp.blocks.sort((a,b)=>a.startYear-b.startYear);
+    const k=nzName(gp.name);const it=consAll().find(i=>nzName(i.name)===k)||consAll().find(i=>{const n=nzName(i.name);return k&&n&&(n.includes(k)||k.includes(n))});
+    const purchases=[],logs={},usage={};let inT=0,outT=0,bal=0;
+    gp.blocks.forEach(b=>{bal=b.opening;logs[(b.startYear-1)+'-12-31']={qty:bal,memo:'엑셀 전년도 남은 수량'};
+      const endYm=b.startYear+'-12';let i=0;
+      for(let m=b.startYear+'-01';m<=endYm&&m<=ymOf(lastDate);m=addYm(m,1)){
+        let o=0;while(i<b.rows.length&&ymOf(b.rows[i].date)<=m){const x=b.rows[i];if(ymOf(x.date)===m){bal+=x.inQ-x.outQ;o+=x.outQ;inT+=x.inQ;outT+=x.outQ;if(x.inQ)purchases.push({date:x.date,qty:x.inQ})}i++}
+        usage[m]=o;
+        if(lastDay(m)<=lastDate)logs[lastDay(m)]={qty:bal,memo:'엑셀 월말 재고'};
+        else logs[lastDate]={qty:bal,memo:`엑셀 기준 재고 (${+lastDate.slice(5,7)}/${+lastDate.slice(8)})`}}});
+    return{name:gp.name,itemId:it?it.id:null,itemName:it?it.name:null,purchases,logs,usage,inT,outT,end:bal,opening:gp.blocks[0].opening,files:[...new Set(gp.blocks.map(b=>b.file))]}});
+  const ids=items.filter(x=>x.itemId).map(x=>x.itemId);
+  const oldP=S.purchases.filter(p=>ids.includes(p.itemId)&&p.date>=rangeStart&&p.date<=lastDate).length;
+  const oldL=S.stockLogs.filter(l=>ids.includes(l.itemId)&&l.date>=prevEnd&&l.date<=lastDate).length;
+  const after=S.purchases.filter(p=>ids.includes(p.itemId)&&p.date>lastDate).length;
+  return{items,lastDate,rangeStart,prevEnd,oldP,oldL,after,files:[...new Set(blocks.map(b=>b.file))]}}
+function applyExcel(){const P=xlPrev;if(!P)return;let nNew=0,nP=0,nL=0;
+  P.items.forEach(x=>{let id=x.itemId;
+    if(!id){const cat=/롤백|비닐|봉투|건전지/.test(x.name)?(cats().find(c=>c.name==='운영')||cats()[0]):(cats().find(c=>c.name==='어메니티')||cats()[0]);
+      const n=newItem({name:x.name.replace(/\s+/g,' ').trim(),catId:cat?cat.id:'',unit:'개'});upsert('items',n);id=n.id;nNew++}
+    const carry={};S.purchases.filter(p=>p.itemId===id&&p.date>=P.rangeStart&&p.date<=P.lastDate).forEach(p=>{if(has(p.price)||p.vendorId||p.memo)carry[p.date+'|'+p.qty]=p;removeRec('purchases',p.id)});
+    S.stockLogs.filter(l=>l.itemId===id&&l.date>=P.prevEnd&&l.date<=P.lastDate).map(l=>l.id).forEach(lid=>removeRec('stockLogs',lid));
+    x.purchases.forEach(p=>{const c=carry[p.date+'|'+p.qty]||{};upsert('purchases',{id:uid('p'),date:p.date,itemId:id,qty:p.qty,price:has(c.price)?c.price:null,vendorId:c.vendorId||'',memo:c.memo||'',src:'excel'});nP++});
+    Object.entries(x.logs).forEach(([d,l])=>{upsert('stockLogs',{id:uid('s'),date:d,itemId:id,qty:l.qty,memo:l.memo,src:'excel'});nL++});
+    Object.entries(x.usage).forEach(([m,v])=>setMap('usage',m,Object.assign({},S.usage[m]||{},{[id]:v})))});
+  S.purchases.sort((a,b)=>a.date.localeCompare(b.date));save();xlPrev=null;
+  toast(`엑셀 반영 완료 · 구매 ${nP}건 · 재고 ${nL}건${nNew?` · 새 품목 ${nNew}개`:''}`);go('home')}
+function inExcel(){
+  const P=xlPrev;
+  return `<div class="card"><h2>엑셀 불러오기 <small>소모품 입출고 엑셀을 그대로 올리면 기록이 맞춰져요</small></h2>
+    <div class="hint" style="margin-top:0">· 롤백·바디워시·샴푸처럼 품목마다 <b>일자 · 입고 수량 · 불출 수량 · 남은 수량</b> 표가 있는 엑셀이면 돼요. 여러 해 파일을 한 번에 골라도 돼요.<br>
+      · 엑셀은 이 화면(브라우저) 안에서만 읽어요. 파일 자체는 어디에도 올라가지 않고, 읽은 숫자만 기록으로 저장돼요.<br>
+      · 엑셀 기간 안의 기존 구매·재고 기록은 엑셀 기준으로 바뀌어요. 같은 날짜·같은 수량의 구매에 넣어둔 단가·구매처는 그대로 옮겨요. 엑셀 기간 뒤에 입력한 기록은 그대로 남아요.</div>
+    <label class="btn ghost" style="margin-top:12px;display:inline-block;color:var(--main)">${xlBusy?'읽는 중…':'엑셀 파일 고르기'}<input type="file" id="xlFile" accept=".xlsx,.xls" multiple class="hidden"></label></div>
+  ${P?`<div class="card"><h2>미리보기 <small>${P.files.map(esc).join(', ')}</small></h2>
+    <div class="tw"><table style="min-width:640px"><thead><tr><th>엑셀 품목</th><th>프로그램 품목</th><th class="num">기초 재고</th><th class="num">입고 합계</th><th class="num">불출(사용) 합계</th><th class="num">${+P.lastDate.slice(5,7)}/${+P.lastDate.slice(8)} 재고</th><th class="num">구매 건수</th></tr></thead><tbody>
+      ${P.items.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${x.itemName?esc(x.itemName):'<span class="tag t-warn">새 품목으로 추가</span>'}</td><td class="num">${won(x.opening)}</td><td class="num">${won(x.inT)}</td><td class="num">${won(x.outT)}</td><td class="num"><b>${won(x.end)}</b></td><td class="num">${x.purchases.length}</td></tr>`).join('')}</tbody></table></div>
+    <div class="note warn">기간 ${P.rangeStart} ~ ${P.lastDate} · 이 기간의 기존 기록 <b>구매 ${P.oldP}건, 재고 ${P.oldL}건</b>이 엑셀 기록으로 바뀌어요.${P.after?` 이후에 입력한 구매 ${P.after}건은 그대로 남아요.`:''}</div>
+    <div class="btns"><button class="btn gray" data-act="xl-cancel">취소</button><button class="btn" data-act="xl-apply">프로그램에 반영</button></div></div>`:''}`}
 function afterInput(){if(inSeg==='buy'&&$('#bq'))updBuy('b');if(inSeg==='bulk')bulkTotals()}
 
 /* ===== 품목 ===== */
@@ -1006,6 +1073,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
       consAll().forEach(it=>{const st=stockNow(it.id),pr=priceOf(it);rows.push([catOf(it).name,it.name,it.unit,st??'',it.min||0,pr??'',st!=null&&pr?st*pr:'',(vendorById(it.vendorId)||{}).name||'',it.active===false?'사용 안 함':isLow(it)?'부족':'정상'])});
       download(`사우나소모품_재고_${today()}.csv`,toCsv(rows),'text/csv;charset=utf-8');break}
     case 'legacy':importLegacy(false);break;
+    case 'xl-cancel':xlPrev=null;render();break;
+    case 'xl-apply':applyExcel();break;
     case 'del-equip':armOrRun(t,()=>{S.items.filter(i=>!isCons(i)).forEach(it=>{S.purchases.filter(p=>p.itemId===it.id).map(p=>p.id).forEach(x=>removeRec('purchases',x));S.stockLogs.filter(l=>l.itemId===it.id).map(l=>l.id).forEach(x=>removeRec('stockLogs',x));removeRec('items',it.id)});
       S.cats.filter(c=>c.group==='equip').map(c=>c.id).forEach(id=>removeRec('cats',id));save();render();toast('비품 품목을 지웠어요')},'정말 지울까요? 한 번 더 누르세요');break;
     case 'ask-demo':case 'ask-reset':{const m=d.act;$('#confirmArea').innerHTML=`<div class="note bad">${m==='ask-demo'?'지금 데이터를 지우고 체험용 예시 데이터로 바꿔요.':'모든 품목·기록을 지우고 처음 상태(3개 품목)로 되돌려요. 되돌릴 수 없어요.'+(mode==='cloud'?' 이후 기존 데이터는 "다시 가져오기"로 불러올 수 있어요.':'')}</div>
@@ -1025,6 +1094,7 @@ document.addEventListener('change',e=>{const t=e.target,id=t.id;
   if(id==='repAppr'){apprOn=t.checked;pref('appr',apprOn?'1':'0');render()}
   if(t.dataset.photo){setPhoto(t.dataset.photo,t.files[0])}
   if(t.dataset.ph){const v=t.value.trim();setMap('perHeadSet',t.dataset.ph,v===''?null:Number(v)/10000);save();render();toast('조정값을 저장했어요')}
+  if(id==='xlFile'&&t.files.length){const fs=[...t.files];xlBusy=true;render();readExcel(fs).then(p=>{xlPrev=p;xlBusy=false;render()}).catch(err=>{console.warn(err);xlBusy=false;render();toast(err&&err.message&&!/timeout|load/.test(err.message)?err.message:'엑셀을 읽지 못했어요 · 인터넷 연결을 확인하세요')})}
   if(id==='importFile'&&t.files[0]){const rd=new FileReader();rd.onload=()=>{try{const o=JSON.parse(rd.result);if(!o||!Array.isArray(o.items))throw 0;replaceAll(o);tidy();save();render();toast('백업을 불러왔어요')}catch(_){toast('백업 파일을 읽을 수 없어요')}};rd.readAsText(t.files[0])}});
 /* 입장객·예산 표: 엑셀에서 12개월 숫자 붙여넣기 → 아래로 채우기 */
 document.addEventListener('paste',e=>{const t=e.target;if(!t.dataset||!t.dataset.yk)return;const txt=(e.clipboardData||window.clipboardData).getData('text');

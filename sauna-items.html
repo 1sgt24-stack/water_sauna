@@ -421,7 +421,8 @@ const PATCHES=[{id:'price-2026-11-28',run(){
   const set=(n,d)=>{const it=find(n);if(it)patch('items',it.id,d)};
   set('샴푸',{price:8975});set('바디워시',{price:8975});set('롤백',{unit:'box',price:41000});
   const cat=(S.cats.find(c=>c.name==='어메니티'&&c.group!=='equip')||S.cats.find(c=>c.group!=='equip')||{}).id||'';
-  [['버블액',120000],['입욕제',65000]].forEach(([n,pr])=>{const it=find(n);if(it)patch('items',it.id,{price:pr,active:true});else upsert('items',newItem({name:n,catId:cat,unit:'개',price:pr}))})}}];
+  [['버블액',120000],['입욕제',65000]].forEach(([n,pr])=>{const it=find(n);if(it)patch('items',it.id,{price:pr,active:true});else upsert('items',newItem({name:n,catId:cat,unit:'개',price:pr}))})}},
+  {id:'rollback-unit-2026-11-28',run(){const it=S.items.find(i=>String(i.name).replace(/\s/g,'')==='롤백');if(it)patch('items',it.id,{unit:'개',orderUnit:'box',pack:10,price:4100})}}];
 function patchData(){let ch=false;PATCHES.forEach(p=>{if(S.meta[p.id])return;p.run();setMap('meta',p.id,today());ch=true});return ch}
 /* 비품 분류 정리: 품목이 없는 비품 분류는 지우고, 분류에 큰 분류 표시가 없으면 소모품으로 */
 function tidy(){let ch=false;
@@ -494,6 +495,12 @@ const boughtAmt=(id,ym)=>S.purchases.filter(p=>p.itemId===id&&ymOf(p.date)===ym)
 const budgetOf=ym=>Number(S.budgets[ym])||0;
 function lastPrice(id){const p=S.purchases.filter(x=>x.itemId===id&&has(x.price)).sort((a,b)=>a.date.localeCompare(b.date)).pop();return p?p.price:null}
 const priceOf=it=>has(it.price)?Number(it.price):lastPrice(it.id);
+/* 주문 단위 환산: 재고·사용량은 세는 단위(예: 개), 구매는 주문 단위(예: box = 10개) */
+const fac=it=>it&&it.orderUnit&&Number(it.pack)>1?Number(it.pack):1;
+const ouOf=it=>fac(it)>1?it.orderUnit:it.unit;
+const qtyTxt=(it,q)=>{if(q==null)return '-';const f=fac(it);return f>1?`${fmt1(q/f)} ${it.orderUnit} (${fmt1(q)}${it.unit})`:`${fmt1(q)}${it.unit}`};
+const priceTxt=(it,pr)=>{pr=pr??priceOf(it);if(!pr)return null;const f=fac(it);return f>1?`${won(pr*f)}원/${it.orderUnit}`:`${won(pr)}원`};
+const roundOrder=(it,q)=>{const f=fac(it);return f>1?Math.ceil(q/f-1e-9)*f:q};
 const sortLogs=a=>a.sort((x,y)=>x.date.localeCompare(y.date)||x.id.localeCompare(y.id));
 function lastLog(id,until){return sortLogs(S.stockLogs.filter(l=>l.itemId===id&&(!until||l.date<=until))).pop()||null}
 function countOf(id,ym){const l=sortLogs(S.stockLogs.filter(x=>x.itemId===id&&ymOf(x.date)===ym)).pop();return l?Number(l.qty):null}
@@ -516,7 +523,7 @@ function planVisitors(T){const tg=Number(S.targets[T])||0,yoy=S.visitors[addYm(T
 function planRows(T,vis){const startDate=lastDay(addYm(T,-1));
   return active().map(it=>{const ph=appliedPh(it.id),au=avgUse(it.id);const exp=ph!=null&&vis?vis*ph:au;
     const st=T<=curYm()?stockNow(it.id):stockAt(it.id,startDate)??stockNow(it.id);const pr=priceOf(it);
-    const rec=Math.max(0,Math.ceil(exp+it.min-(st??0)));return{it,exp,st,rec,price:pr,amt:rec*(pr||0),basis:ph!=null&&vis?'입장객 기준':au?'최근 평균':'자료 없음'}})}
+    const rec=roundOrder(it,Math.max(0,Math.ceil(exp+it.min-(st??0))));return{it,exp,st,rec,price:pr,amt:rec*(pr||0),basis:ph!=null&&vis?'입장객 기준':au?'최근 평균':'자료 없음'}})}
 /* 연간 계획: 같은 달의 1인당 사용량(지난 해들 평균) × 그 해 목표 입장객 → 월별 사용량 예측 → 재고를 이어가며 구매량 계산 */
 function expFor(it,m){
   const tg=Number(S.targets[m])||0,ov=has(S.perHeadSet[it.id])?Number(S.perHeadSet[it.id]):null;
@@ -531,9 +538,9 @@ function annualPlan(Y){
   const months=[...Array(12)].map((_,i)=>Y+'-'+pad(i+1)),startYm=curYm();
   const rows=active().map(it=>{
     let stock=stockNow(it.id)??0;
-    for(let m=startYm;m<months[0];m=addYm(m,1)){const e=expFor(it,m).exp;stock=stock+Math.max(0,Math.ceil(e+it.min-stock))-e}
+    for(let m=startYm;m<months[0];m=addYm(m,1)){const e=expFor(it,m).exp;stock=stock+roundOrder(it,Math.max(0,Math.ceil(e+it.min-stock)))-e}
     const cells=months.map(m=>{const {exp,basis}=expFor(it,m);let qty=0;
-      if(m>=startYm){qty=Math.max(0,Math.ceil(exp+it.min-stock));stock=stock+qty-exp}
+      if(m>=startYm){qty=roundOrder(it,Math.max(0,Math.ceil(exp+it.min-stock)));stock=stock+qty-exp}
       return{m,exp,qty,amt:qty*(priceOf(it)||0),basis,past:m<startYm}});
     return{it,cells}});
   return{months,rows}}
@@ -601,7 +608,7 @@ function vHome(){
       ${dg.map(d=>`<div class="diag ${d.k}"><div class="ic">${d.k==='ok'?'✓':d.k==='bad'?'!':'·'}</div><div class="b">${esc(d.t)}<small>${esc(d.s)}</small></div>${d.b?`<button class="btn ghost sm" data-act="${d.act}">${d.b}</button>`:''}</div>`).join('')}</div>
     <div class="card"><h2>${mKo(nx)} 구매 계획 <button class="link" data-act="go-plan">자세히 ›</button></h2>
       ${pbuy.length?`<table><thead><tr><th>품목</th><th class="num">살 수량</th><th class="num">예상 금액</th></tr></thead><tbody>
-        ${pbuy.map(r=>`<tr class="click" data-item="${r.it.id}"><td>${esc(r.it.name)}</td><td class="num"><b>${r.rec}</b> ${esc(r.it.unit)}</td><td class="num">${r.price?won(r.amt)+'원':'<span class="tag t-mute">단가 없음</span>'}</td></tr>`).join('')}</tbody>
+        ${pbuy.map(r=>`<tr class="click" data-item="${r.it.id}"><td>${esc(r.it.name)}</td><td class="num"><b>${qtyTxt(r.it,r.rec)}</b></td><td class="num">${r.price?won(r.amt)+'원':'<span class="tag t-mute">단가 없음</span>'}</td></tr>`).join('')}</tbody>
         <tfoot><tr><td>합계</td><td></td><td class="num">${won(ptotal)}원</td></tr></tfoot></table>
         <div class="hint">예상 입장객 ${pv.v?won(pv.v)+'명':'-'} (${pv.opts[pv.key].l}) 기준이에요.</div>`
         :`<div class="empty">${active().some(i=>stockNow(i.id)!=null)?`재고가 충분해서 ${mKo(nx)}에 살 물건이 없어요.`:'월말 재고를 입력하면 살 수량을 계산해 드려요.'}</div>`}</div>
@@ -618,7 +625,7 @@ function vHome(){
 function logRow(a){const it=itemById(a.itemId)||{name:'(삭제된 품목)',unit:''};
   if(a.k==='buy'){const p=a.p,v=vendorById(p.vendorId),pp=prevPrice(p);
     return `<button class="log" data-edit="${p.id}"><div class="d num">${+p.date.slice(5,7)}/${+p.date.slice(8)}</div><span class="tag t-buy">구매</span>
-      <div class="b"><div class="t">${esc(it.name)} <b class="num">${fmt1(p.qty)}</b>${esc(it.unit)}</div><div class="m">${v?esc(v.name):'구매처 없음'}${p.legacyId?' · 예전 기록':''}${has(p.price)&&pp&&pp!==p.price?` · 단가 ${p.price>pp?'인상':'인하'} (${won(pp)}→${won(p.price)})`:''}${p.memo?' · '+esc(p.memo):''}</div></div>
+      <div class="b"><div class="t">${esc(it.name)} <b class="num">${qtyTxt(it,p.qty)}</b></div><div class="m">${v?esc(v.name):'구매처 없음'}${p.legacyId?' · 예전 기록':''}${has(p.price)&&pp&&pp!==p.price?` · 단가 ${p.price>pp?'인상':'인하'} (${priceTxt(it,pp)}→${priceTxt(it,p.price)})`:''}${p.memo?' · '+esc(p.memo):''}</div></div>
       <div class="r">${has(p.price)?won(amt(p))+'원':'<span class="tag t-mute">단가 없음</span>'}</div></button>`}
   const l=a.l;return `<button class="log" data-log="${l.id}"><div class="d num">${+l.date.slice(5,7)}/${+l.date.slice(8)}</div><span class="tag t-count">재고</span>
     <div class="b"><div class="t">${esc(it.name)} 남은 수량 <b class="num">${fmt1(l.qty)}</b>${esc(it.unit)}</div><div class="m">${l.memo?esc(l.memo):'재고 확인'}</div></div></button>`}
@@ -628,12 +635,14 @@ function vInput(){
   const segs=[['buy','🛒 구매'],['bulk','📑 여러 품목 한 번에'],['count','📦 월말 재고'],['year','🎯 입장객·예산'],['excel','📥 엑셀 불러오기']];
   return `<div class="seg" style="margin-top:16px">${segs.map(([k,l])=>`<button class="${inSeg===k?'on':''}" data-inseg="${k}">${l}</button>`).join('')}</div>`+
     ({buy:inBuy,bulk:inBulk,count:inCount,year:inYear,excel:inExcel}[inSeg])()}
-function buyFormHtml(p,ex){
-  const list=active();const it=itemById(buy.itemId);
+function buyFormHtml(p,ex){return `<div id="${p}form">${buyFormInner(p,ex)}</div>`}
+function buyFormInner(p,ex){
+  const list=active();const it=itemById(buy.itemId),f=fac(it),ou=ouOf(it);
   const pick=ex&&!list.some(i=>i.id===it.id)?[it,...list]:list;
   return `<label>무엇을 샀나요?</label><div class="picks">${pick.map(i=>`<button class="pick ${i.id===buy.itemId?'on':''}" data-pick="${i.id}" data-p="${p}">${thumb(i)}<div class="t">${esc(i.name)}</div></button>`).join('')}</div>
-    <div class="row2"><div><label for="${p}q">수량 (<span id="${p}u">${esc(it.unit)}</span>)</label><div class="stepper"><button data-step="-1" data-p="${p}" aria-label="빼기">−</button><input id="${p}q" class="num" type="number" inputmode="decimal" min="0" value="${buy.qty}"><button data-step="1" data-p="${p}" aria-label="더하기">＋</button></div></div>
-      <div><label for="${p}pr">단가 (원, ${VAT})</label><input id="${p}pr" class="num" type="number" inputmode="numeric" min="0" value="${buy.price??''}" placeholder="모르면 비워두기"></div></div>
+    <div class="row2"><div><label for="${p}q">수량 (<span id="${p}u">${esc(ou)}</span>)</label><div class="stepper"><button data-step="-1" data-p="${p}" aria-label="빼기">−</button><input id="${p}q" class="num" type="number" inputmode="decimal" min="0" value="${+(buy.qty/f).toFixed(2)}"><button data-step="1" data-p="${p}" aria-label="더하기">＋</button></div></div>
+      <div><label for="${p}pr">단가 (원/${esc(ou)}, ${VAT})</label><input id="${p}pr" class="num" type="number" inputmode="numeric" min="0" value="${has(buy.price)?Math.round(buy.price*f):''}" placeholder="모르면 비워두기"></div></div>
+    ${f>1?`<div class="note info">1${esc(it.orderUnit)} = ${it.pack}${esc(it.unit)} · ${esc(it.orderUnit)}로 입력하면 재고·사용량은 ${esc(it.unit)} 단위로 자동 환산돼요.</div>`:''}
     <div id="${p}note"></div>
     <div class="row2"><div><label for="${p}v">구매처</label><select id="${p}v"><option value="">선택 안 함</option>${S.vendors.map(v=>`<option value="${v.id}" ${v.id===buy.vendorId?'selected':''}>${esc(v.name)}</option>`).join('')}<option value="__new">＋ 새 구매처 추가…</option></select></div>
       <div><label for="${p}d">구매일</label><input id="${p}d" type="date" value="${buy.date}"></div></div>
@@ -644,22 +653,22 @@ function startBuy(itemId,ex){const list=active();
   const iid=ex?ex.itemId:(itemId||(list.find(i=>i.id===lastItem)||list[0]||{}).id);
   if(!iid||!itemById(iid))return false;const it=itemById(iid);
   buy=ex?{id:ex.id,itemId:iid,qty:ex.qty,price:ex.price,vendorId:ex.vendorId,date:ex.date,memo:ex.memo,legacyId:ex.legacyId}
-       :{id:null,itemId:iid,qty:1,price:priceOf(it),vendorId:it.vendorId,date:today(),memo:''};return true}
+       :{id:null,itemId:iid,qty:fac(it),price:priceOf(it),vendorId:it.vendorId,date:today(),memo:''};return true}
 function inBuy(){
   if(!buy||buy.id||!itemById(buy.itemId))if(!startBuy())return `<div class="card"><div class="empty">품목이 없어요. <button class="link" data-act="go-items">품목 추가하기</button></div></div>`;
   return `<div class="card"><h2>구매 입력 <small>가격·구매처는 한 번 넣으면 다음부터 자동으로 들어가요</small></h2>${buyFormHtml('b',false)}
     <div class="btns"><button class="btn ghost" data-act="buy-save" data-more="1" data-p="b">저장하고 하나 더</button><button class="btn" data-act="buy-save" data-p="b">저장</button></div></div>`}
-function updBuy(p){const it=itemById(buy.itemId),q=Number($('#'+p+'q').value)||0,pv=$('#'+p+'pr').value,pr=Number(pv),base=priceOf(it);
-  $('#'+p+'u').textContent=it.unit;$('#'+p+'line').textContent=`${it.name} ${fmt1(q)}${it.unit}${pv!==''?' × '+won(pr)+'원':''}`;
+function updBuy(p){const it=itemById(buy.itemId),f=fac(it),ou=ouOf(it),q=Number($('#'+p+'q').value)||0,pv=$('#'+p+'pr').value,pr=Number(pv),base=priceOf(it)?Math.round(priceOf(it)*f):null;
+  $('#'+p+'u').textContent=ou;$('#'+p+'line').textContent=`${it.name} ${fmt1(q)}${ou}${f>1?` (${fmt1(q*f)}${it.unit})`:''}${pv!==''?' × '+won(pr)+'원':''}`;
   $('#'+p+'tot').textContent=pv===''?'단가 없음':won(q*pr)+'원';
   $('#'+p+'note').innerHTML=pv===''?'<div class="note info">단가 없이도 저장돼요. 다만 구매액·예산 계산에서 빠져요.</div>':base&&pr!==base?`<div class="note warn">지난 단가(${won(base)}원)와 달라요. 이 단가가 다음부터 자동으로 들어가요.</div>`:''}
-function saveBuy(p,more){const it=itemById(buy.itemId),q=Number($('#'+p+'q').value)||0,pv=$('#'+p+'pr').value;
+function saveBuy(p,more){const it=itemById(buy.itemId),f=fac(it),q=(Number($('#'+p+'q').value)||0)*f,pv0=$('#'+p+'pr').value,pv=pv0===''?'':String(Number(pv0)/f);
   if(!q){toast('수량을 입력하세요');return}
   let vid=$('#'+p+'v').value;if(vid==='__new'){const nm=$('#'+p+'vn').value.trim();if(!nm){toast('새 구매처 이름을 입력하세요');return}vid=uid('v');upsert('vendors',{id:vid,name:nm,contact:'',phone:'',method:'전화 주문',memo:''})}
   const rec={id:buy.id||uid('p'),date:$('#'+p+'d').value||today(),itemId:it.id,qty:q,price:pv===''?null:Number(pv),vendorId:vid,memo:$('#'+p+'m').value.trim()};
   if(buy.legacyId)rec.legacyId=buy.legacyId;upsert('purchases',rec);S.purchases.sort((a,b)=>a.date.localeCompare(b.date));
   const ip={};if(pv!==''&&Number(pv)!==it.price)ip.price=Number(pv);if(vid&&vid!==it.vendorId)ip.vendorId=vid;if(Object.keys(ip).length)patch('items',it.id,ip);
-  lastItem=it.id;pref('last',it.id);const was=!!buy.id;save();toast(`${it.name} ${fmt1(q)}${it.unit} ${was?'수정했어요':'저장했어요'}`);
+  lastItem=it.id;pref('last',it.id);const was=!!buy.id;save();toast(`${it.name} ${qtyTxt(it,q)} ${was?'수정했어요':'저장했어요'}`);
   if(was){closeSheet();buy=null;render();return}
   if(more){startBuy(it.id);render()}else{buy=null;go('home')}}
 function inBulk(){const pre=prefillBulk||{};
@@ -669,15 +678,15 @@ function inBulk(){const pre=prefillBulk||{};
     <label for="km">메모 (선택)</label><input id="km" placeholder="거래명세서 번호 등">
     ${prefillBulk?'<div class="note info">구매 계획의 수량이 미리 들어가 있어요. 실제로 산 수량으로 고쳐서 저장하세요.</div>':''}
     <div class="bin" style="font-size:11px;color:var(--sub);font-weight:700;padding-top:14px"><div></div><div>품목</div><div style="text-align:right">수량</div><div style="text-align:right">단가</div></div>
-    ${active().map(it=>`<div class="bin">${mini(it)}<div class="nm2"><div>${esc(it.name)}</div><small>${esc(it.unit)} · 남은 ${fmt1(stockNow(it.id))}</small></div>
-      <input class="num" type="number" inputmode="decimal" min="0" id="bq-${it.id}" data-bq="${it.id}" placeholder="0" value="${pre[it.id]||''}">
-      <input class="num" type="number" inputmode="numeric" min="0" id="bp-${it.id}" data-bp="${it.id}" value="${priceOf(it)??''}" placeholder="단가"></div>`).join('')}
+    ${active().map(it=>{const f=fac(it);return `<div class="bin">${mini(it)}<div class="nm2"><div>${esc(it.name)}</div><small>${esc(ouOf(it))} 단위${f>1?` (1${esc(it.orderUnit)}=${it.pack}${esc(it.unit)})`:''} · 남은 ${qtyTxt(it,stockNow(it.id))}</small></div>
+      <input class="num" type="number" inputmode="decimal" min="0" id="bq-${it.id}" data-bq="${it.id}" placeholder="0" value="${pre[it.id]?+(pre[it.id]/f).toFixed(2):''}">
+      <input class="num" type="number" inputmode="numeric" min="0" id="bp-${it.id}" data-bp="${it.id}" value="${priceOf(it)?Math.round(priceOf(it)*f):''}" placeholder="단가"></div>`}).join('')}
     <div class="sum"><span style="font-size:13px" id="bcnt">0개 품목</span><b class="num" id="btot">0원</b></div>
     <div class="btns"><button class="btn" data-act="bulk-save">모두 저장</button></div></div>`}
 function bulkTotals(){let n=0,t=0;active().forEach(it=>{const q=Number($('#bq-'+it.id)?.value)||0,p=Number($('#bp-'+it.id)?.value)||0;if(q>0){n++;t+=q*p}});
   if($('#bcnt')){$('#bcnt').textContent=n+'개 품목';$('#btot').textContent=won(t)+'원'}}
 function saveBulk(){const date=$('#kd').value||today(),memo=$('#km').value.trim(),bv=$('#kv').value;let n=0;
-  active().forEach(it=>{const q=Number($('#bq-'+it.id).value)||0,pv=$('#bp-'+it.id).value;if(!q)return;const price=pv===''?null:Number(pv),vid=bv||it.vendorId||'';
+  active().forEach(it=>{const f=fac(it),q=(Number($('#bq-'+it.id).value)||0)*f,pv=$('#bp-'+it.id).value;if(!q)return;const price=pv===''?null:Number(pv)/f,vid=bv||it.vendorId||'';
     upsert('purchases',{id:uid('p'),date,itemId:it.id,qty:q,price,vendorId:vid,memo});const ip={};if(price!=null&&price!==it.price)ip.price=price;if(bv&&bv!==it.vendorId)ip.vendorId=bv;if(Object.keys(ip).length)patch('items',it.id,ip);n++});
   if(!n){toast('수량을 1개 이상 입력하세요');return}S.purchases.sort((a,b)=>a.date.localeCompare(b.date));prefillBulk=null;save();toast(n+'개 품목 저장했어요');go('home')}
 function defaultCountYm(){return new Date().getDate()<=10?addYm(curYm(),-1):curYm()}
@@ -781,7 +790,7 @@ function vItems(){const off=consAll().filter(i=>i.active===false).length;
     <div class="pgrid">${list.map(it=>{const st=stockNow(it.id),lw=isLow(it),pr=priceOf(it),of=it.active===false;
       return `<button class="pcard ${lw?'low':''} ${of?'off':''}" data-item="${it.id}">${thumb(it,of?{t:'사용 안 함',m:1}:lw?{t:'부족'}:null)}
         <div class="bd"><div class="nm">${esc(it.name)}</div><div class="sp">${esc(it.spec||catOf(it).name)}</div>
-        <div class="q"><b class="num">${st==null?'-':fmt1(st)}<small>${esc(it.unit)}</small></b><span class="num">${pr?won(pr)+'원':'단가 없음'}</span></div></div></button>`}).join('')}
+        <div class="q"><b class="num">${st==null?'-':fmt1(st)}<small>${esc(it.unit)}</small></b><span class="num">${priceTxt(it)||'단가 없음'}</span></div></div></button>`}).join('')}
       <button class="addcard" data-act="new-item">＋ 품목 추가</button></div>
     <div class="hint">품목을 누르면 상세 정보, 구매 입력, 재고 수정, 정보 수정을 할 수 있어요.</div>`}
 function itemDetail(id){const it=itemById(id);if(!it)return;detailId=id;const st=stockNow(id),lw=isLow(it),v=vendorById(it.vendorId),pr=priceOf(it),c=catOf(it);
@@ -790,10 +799,10 @@ function itemDetail(id){const it=itemById(id);if(!it)return;detailId=id;const st
   openSheet(`<h3><span style="font-size:12px;color:${cc(c)}">${esc(c.name)}</span><button class="x" data-act="close">×</button></h3>
     <div class="det"><div class="ph">${thumb(it)}<label for="photo-in">사진</label><input type="file" accept="image/*" id="photo-in" data-photo="${id}" class="hidden"></div>
       <div style="min-width:0;flex:1"><div style="font-size:19px;font-weight:800">${esc(it.name)}</div>
-        <div style="font-size:13px;color:var(--sub);margin-top:2px">${esc(it.spec||'')}${it.pack>1?` · 1${esc(it.unit)}에 ${it.pack}개`:''}</div>
+        <div style="font-size:13px;color:var(--sub);margin-top:2px">${esc(it.spec||'')}${fac(it)>1?` · 1${esc(it.orderUnit)} = ${it.pack}${esc(it.unit)}`:''}</div>
         <div style="margin-top:6px">${it.active===false?'<span class="tag t-mute">사용 안 함</span>':lw?'<span class="tag t-bad">최소 보유량보다 적어요</span>':st!=null?'<span class="tag t-ok">충분해요</span>':''}</div></div></div>
     <div class="dq"><div><span>남은 수량</span><b class="num" style="color:${lw?'var(--red)':'inherit'}">${st==null?'-':fmt1(st)} ${esc(it.unit)}</b></div>
-      <div><span>최소 보유량</span><b class="num">${it.min||0} ${esc(it.unit)}</b></div><div><span>단가</span><b class="num">${pr?won(pr)+'원':'-'}</b></div></div>
+      <div><span>최소 보유량</span><b class="num">${it.min||0} ${esc(it.unit)}</b></div><div><span>단가</span><b class="num" style="font-size:15px">${priceTxt(it)||'-'}</b></div></div>
     <div class="btns" style="margin-top:0"><button class="btn" data-act="buy-this" data-id="${id}">＋ 구매 입력</button><button class="btn ghost" data-act="count-this" data-id="${id}">재고 수정</button></div>
     <table style="margin-top:14px;font-size:13px"><tbody>
       <tr><td style="color:var(--sub);width:92px">구매처</td><td>${v?`${esc(v.name)}${v.contact||v.phone?` <span style="color:var(--sub)">· ${esc(v.contact)} ${esc(v.phone)}</span>`:''}`:'<span style="color:var(--sub)">미입력 · 구매 입력 때 고르면 기억해요</span>'}</td></tr>
@@ -811,17 +820,20 @@ function itemForm(id){const it=id?itemById(id):newItem({catId:itemCat||cats()[0]
     <label for="fn">품목 이름</label><input id="fn" value="${esc(it.name)}" placeholder="예: 대용량 린스">
     <div class="row2"><div><label for="fc">분류</label><select id="fc">${cats().map(c=>`<option value="${c.id}" ${c.id===it.catId?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="" ${!it.catId?'selected':''}>미분류</option></select></div>
       <div><label for="fu">세는 단위</label><input id="fu" value="${esc(it.unit)}" placeholder="통, 박스"></div></div>
-    <div class="row2"><div><label for="fp">기본 단가 (원, ${VAT})</label><input id="fp" class="num" type="number" inputmode="numeric" min="0" value="${it.price??''}" placeholder="${lastPrice(it.id)?'최근 '+won(lastPrice(it.id)):'비우면 최근 구매 단가'}"></div>
+    <div class="row2"><div><label for="fp">기본 단가 (원/${esc(ouOf(it))}, ${VAT})</label><input id="fp" class="num" type="number" inputmode="numeric" min="0" value="${has(it.price)?Math.round(it.price*fac(it)):''}" placeholder="${lastPrice(it.id)?'최근 '+won(lastPrice(it.id)):'비우면 최근 구매 단가'}"></div>
       <div><label for="fmn">최소 보유량</label><input id="fmn" class="num" type="number" inputmode="decimal" min="0" value="${it.min||''}" placeholder="0"></div></div>
     <label for="fv">주로 사는 곳</label><select id="fv"><option value="">선택 안 함</option>${S.vendors.map(v=>`<option value="${v.id}" ${v.id===it.vendorId?'selected':''}>${esc(v.name)}</option>`).join('')}</select>
-    <div class="row2"><div><label for="fs">규격 (선택)</label><input id="fs" value="${esc(it.spec)}" placeholder="20L 말통"></div><div><label for="fk">1단위 안의 개수 (선택)</label><input id="fk" class="num" type="number" inputmode="numeric" min="1" value="${it.pack||1}"></div></div>
+    <div class="row2"><div><label for="fs">규격 (선택)</label><input id="fs" value="${esc(it.spec)}" placeholder="20L 말통"></div><div></div></div>
+    <div class="row2"><div><label for="fo">주문 단위 (선택)</label><input id="fo" value="${esc(it.orderUnit||'')}" placeholder="예: box"></div><div><label for="fk">주문 단위당 개수</label><input id="fk" class="num" type="number" inputmode="numeric" min="1" value="${fac(it)>1?it.pack:''}" placeholder="예: 10"></div></div>
+    <div class="hint">살 때는 box, 셀 때는 개처럼 단위가 다르면 주문 단위를 넣어요. 재고·사용량은 세는 단위로 계산하고, 구매 입력·구매 계획은 주문 단위로 보여줘요. 단가는 주문 단위 기준으로 넣어요.</div>
     <label for="fme">메모 (선택)</label><input id="fme" value="${esc(it.memo)}" placeholder="보관 위치, 주의사항 등">
     ${id?`<label class="chk"><input type="checkbox" id="foff" ${it.active===false?'checked':''}> 사용 안 함 (목록·입력에서 숨기고 기록은 남겨요)</label>`:''}
     <div class="btns"><button class="btn gray" data-act="close">취소</button><button class="btn" data-act="item-save" data-id="${id||''}">저장</button></div>
     ${id?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:12px"><button class="btn danger-soft sm" data-act="item-del" data-id="${id}">완전히 삭제${nRec?` (기록 ${nRec}건 포함)`:''}</button>
       <div class="hint">${nRec?'삭제하면 이 품목의 구매·재고 기록도 모두 지워지고 되돌릴 수 없어요. 보통은 "사용 안 함"을 권해요.':'기록이 없는 품목이에요.'}</div></div>`:''}`)}
-function saveItem(id){const pv=$('#fp').value;const d={name:$('#fn').value.trim(),catId:$('#fc').value,spec:$('#fs').value.trim(),unit:$('#fu').value.trim()||'개',pack:Number($('#fk').value)||1,
-  price:pv===''?null:Number(pv),min:Number($('#fmn').value)||0,vendorId:$('#fv').value,memo:$('#fme').value.trim()};if(!d.name){toast('품목 이름을 입력하세요');return}
+function saveItem(id){const pv=$('#fp').value,ou=$('#fo').value.trim(),pk=Number($('#fk').value)||1,f=ou&&pk>1?pk:1;
+  const d={name:$('#fn').value.trim(),catId:$('#fc').value,spec:$('#fs').value.trim(),unit:$('#fu').value.trim()||'개',orderUnit:f>1?ou:'',pack:f>1?pk:1,
+  price:pv===''?null:Number(pv)/f,min:Number($('#fmn').value)||0,vendorId:$('#fv').value,memo:$('#fme').value.trim()};if(!d.name){toast('품목 이름을 입력하세요');return}
   if(id){d.active=!$('#foff').checked;patch('items',id,d)}else{const n=newItem(d);upsert('items',n);id=n.id}save();render();toast(d.name+' 저장했어요');itemDetail(id)}
 function countOne(id,logId){const ex=logId?S.stockLogs.find(l=>l.id===logId):null;const it=itemById(ex?ex.itemId:id);if(!it)return;const st=stockNow(it.id);
   openSheet(`<h3>${ex?'재고 기록 수정':'재고 수정'}<button class="x" data-act="close">×</button></h3><p class="desc">${esc(it.name)} — 창고에 실제로 남은 수량을 세서 입력하세요.</p>
@@ -886,8 +898,8 @@ function repMonth(){const ym=repYm,nx=addYm(ym,1),cur=spend(ym),bud=budgetOf(ym)
       <tr><td>구매액</td>${ms.map(m=>td(spend(m),man)).join('')}<td>${man(ytdS)}</td></tr>
       <tr class="tot"><td>집행률</td>${ms.map(m=>`<td>${budgetOf(m)?(spend(m)/budgetOf(m)*100).toFixed(0)+'%':'-'}</td>`).join('')}<td>${ytdB?(ytdS/ytdB*100).toFixed(0)+'%':'-'}</td></tr></tbody></table>
     <h3>4. ${mKo(nx)} 구매 계획</h3>
-    ${pr.length?`<table class="rt"><thead><tr><th>품목</th><th>예상 사용</th><th>최소 보유</th><th>구매 수량</th><th>단가(원)</th><th>예상 금액(원)</th><th>구매처</th></tr></thead><tbody>
-      ${pr.map(r=>`<tr><td>${esc(r.it.name)}</td><td>${r.exp.toFixed(1)}</td><td>${r.it.min||0}</td><td><b>${r.rec}</b> ${esc(r.it.unit)}</td>${td(r.price)}${td(r.amt)}<td style="text-align:left;font-weight:400">${esc((vendorById(r.it.vendorId)||{}).name||'')}</td></tr>`).join('')}
+    ${pr.length?`<table class="rt"><thead><tr><th>품목</th><th>예상 사용</th><th>최소 보유</th><th>구매 수량</th><th>단가</th><th>예상 금액(원)</th><th>구매처</th></tr></thead><tbody>
+      ${pr.map(r=>`<tr><td>${esc(r.it.name)}</td><td>${r.exp.toFixed(1)}</td><td>${r.it.min||0}</td><td><b>${qtyTxt(r.it,r.rec)}</b></td><td>${priceTxt(r.it,r.price)||'-'}</td>${td(r.amt)}<td style="text-align:left;font-weight:400">${esc((vendorById(r.it.vendorId)||{}).name||'')}</td></tr>`).join('')}
       <tr class="tot"><td colspan="5">합계</td><td>${won(pt)}</td><td></td></tr></tbody></table>
       <div class="rnote">예상 ${VIS} ${pv.v?won(pv.v)+'명':'-'} (${pv.opts[pv.key].l}) × 품목별 1인당 사용량 기준. 구매 수량 = 예상 사용 + 최소 보유 − 남은 수량.</div>`
       :`<div class="rnote">${active().some(i=>stockNow(i.id)!=null)?`재고가 충분해서 ${mKo(nx)} 구매 계획이 없어요.`:'재고 기록이 없어 구매 계획을 계산하지 못했어요.'}</div>`}
@@ -901,7 +913,7 @@ function repPlan(){const T=planYm,pv=planVisitors(T),rows=planRows(T,pv.v),buy=r
     <div class="kpi"><div class="l">구매할 품목</div><div class="v num">${buy.length}<span>개</span></div><div class="s">전체 ${rows.length}개 중</div></div></div>
   <div class="card"><h2>품목별 구매 수량</h2><div class="tw"><table style="min-width:560px"><thead><tr><th>품목</th><th>계산 기준</th><th class="num">예상 사용</th><th class="num">남은 수량</th><th class="num">최소 보유</th><th class="num">살 수량</th><th class="num">예상 금액</th></tr></thead><tbody>
     ${rows.map(r=>`<tr class="click" data-item="${r.it.id}"><td>${esc(r.it.name)}</td><td style="color:var(--sub);font-size:13px">${r.basis}</td><td class="num">${r.exp.toFixed(1)}</td><td class="num">${fmt1(r.st)}</td><td class="num">${r.it.min||0}</td>
-      <td class="num">${r.rec?`<b>${r.rec}</b> ${esc(r.it.unit)}`:'<span class="tag t-ok">불필요</span>'}</td><td class="num">${r.rec?(r.price?won(r.amt)+'원':'<span class="tag t-mute">단가 없음</span>'):'-'}</td></tr>`).join('')}</tbody>
+      <td class="num">${r.rec?`<b>${qtyTxt(r.it,r.rec)}</b>`:'<span class="tag t-ok">불필요</span>'}</td><td class="num">${r.rec?(r.price?won(r.amt)+'원':'<span class="tag t-mute">단가 없음</span>'):'-'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>합계</td><td></td><td></td><td></td><td></td><td class="num">${buy.length}개 품목</td><td class="num">${won(total)}원</td></tr></tfoot></table></div>
     <div class="btns"><button class="btn ghost" data-act="plan-save">${saved?'계획 다시 저장':'이 계획 저장'}</button><button class="btn ghost" data-act="plan-copy">목록 복사 (엑셀용)</button><button class="btn" data-act="plan-bulk" ${buy.length?'':'disabled'}>이 수량으로 구매 입력</button></div></div>
   <div class="card"><h2>예상 입장객 기준</h2><div class="seg small" style="flex-wrap:wrap">${Object.entries(pv.opts).map(([k,o])=>`<button class="${pv.key===k?'on':''}" data-src="${k}">${o.l}${k!=='manual'?` · ${o.v?won(o.v):'-'}`:''}</button>`).join('')}</div>
@@ -1014,8 +1026,9 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
   if(d.catedit){catForm(d.catedit);return}
   if(d.sw!==undefined){document.querySelectorAll('.sw').forEach(b=>b.classList.toggle('on',b===t));$('#ccol').value=d.sw;return}
   if(d.src){planSrc=d.src;render();return}
-  if(d.pick){const p=d.p,it=itemById(d.pick);buy.itemId=it.id;t.parentElement.querySelectorAll('.pick').forEach(b=>b.classList.toggle('on',b===t));
-    if(!buy.id){$('#'+p+'pr').value=priceOf(it)??'';$('#'+p+'v').value=it.vendorId||''}updBuy(p);return}
+  if(d.pick){const p=d.p,it=itemById(d.pick);buy.date=$('#'+p+'d').value||buy.date;buy.memo=$('#'+p+'m').value;
+    if(buy.id){const pv=$('#'+p+'v').value;if(pv!=='__new')buy.vendorId=pv}else{buy.qty=fac(it);buy.price=priceOf(it);buy.vendorId=it.vendorId||''}
+    buy.itemId=it.id;$('#'+p+'form').innerHTML=buyFormInner(p,!!buy.id);updBuy(p);return}
   if(d.step){const i=$('#'+d.p+'q');i.value=Math.max(0,(Number(i.value)||0)+Number(d.step));updBuy(d.p);return}
   if(d.cstep){const i=$('#cs-'+d.for);i.value=Math.max(0,(Number(i.value)||0)+Number(d.cstep));return}
   if(d.onestep){const i=$('#cq');i.value=Math.max(0,(Number(i.value)||0)+Number(d.onestep));return}
@@ -1058,7 +1071,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
       rows:rows.filter(r=>r.rec).map(r=>({itemId:r.it.id,rec:r.rec,amt:r.amt})),savedAt:today()});save();render();toast(mKo(planYm)+' 계획을 저장했어요');break}
     case 'plan-bulk':{const pre={};planRows(planYm,planVisitors(planYm).v).forEach(r=>{if(r.rec)pre[r.it.id]=r.rec});prefillBulk=pre;inSeg='bulk';go('input');break}
     case 'plan-copy':{const pv=planVisitors(planYm);const rows=[[ymKo(planYm)+' 구매 계획',`예상 ${VIS}`,pv.v],['품목','수량','단위','단가',`예상 금액(${VAT})`,'구매처']];
-      planRows(planYm,pv.v).filter(r=>r.rec).forEach(r=>rows.push([r.it.name,r.rec,r.it.unit,r.price??'',r.amt||'',(vendorById(r.it.vendorId)||{}).name||'']));copyText(rows.map(r=>r.join('\t')).join('\n'));break}
+      planRows(planYm,pv.v).filter(r=>r.rec).forEach(r=>{const f=fac(r.it);rows.push([r.it.name,r.rec/f,ouOf(r.it),r.price?Math.round(r.price*f):'',r.amt||'',(vendorById(r.it.vendorId)||{}).name||''])});copyText(rows.map(r=>r.join('\t')).join('\n'));break}
     case 'ann-copy':{const {months,rows}=annualPlan(annYear);const out=[[annYear+'년 구매계획(살 수량)',...months.map(mKo),'합계']];
       rows.forEach(r=>out.push([r.it.name+'('+r.it.unit+')',...r.cells.map(c=>c.past?'':c.qty),r.cells.reduce((s,c)=>s+c.qty,0)]));
       out.push(['예상 금액(원)',...months.map((m,i)=>rows.reduce((s,r)=>s+r.cells[i].amt,0)),rows.reduce((s,r)=>s+r.cells.reduce((a,c)=>a+c.amt,0),0)]);

@@ -433,7 +433,12 @@ const PATCHES=[{id:'price-2026-11-28',run(){
       for(let k=1;k<=10;k++){const ym='2026-'+pad(k);
         upsert('stockLogs',{id:uid('s'),date:lastDay(ym),itemId:it.id,qty:0,memo:'월말 재고 0 (구매량 = 사용량으로 가정)',src:'excel'});
         setMap('usage',ym,Object.assign({},S.usage[ym]||{},{[it.id]:ms[pad(k)]||0}))}});
-    S.purchases.sort((a,b)=>a.date.localeCompare(b.date))}}];
+    S.purchases.sort((a,b)=>a.date.localeCompare(b.date))}},
+  /* 버블액·입욕제 분류 → 운영 */
+  {id:'bath-cat-ops',run(){let c=S.cats.find(c=>c.name==='운영'&&c.group!=='equip');if(!c){c={id:uid('c'),name:'운영',color:2,group:'cons'};upsert('cats',c)}
+    S.items.filter(i=>['버블액','입욕제'].includes(String(i.name).replace(/\s/g,''))).forEach(i=>patch('items',i.id,{catId:c.id}))}},
+  /* 2026년 구매 중 단가가 빈 기록에 현재 단가(2026년 단가) 채우기 */
+  {id:'price-2026-yearfill',run(){S.purchases.forEach(p=>{if(p.date.slice(0,4)!=='2026'||has(p.price))return;const it=itemById(p.itemId);if(it&&has(it.price))patch('purchases',p.id,{price:Number(it.price)})})}}];
 function patchData(){let ch=false;PATCHES.forEach(p=>{if(S.meta[p.id])return;p.run();setMap('meta',p.id,today());ch=true});return ch}
 /* 비품 분류 정리: 품목이 없는 비품 분류는 지우고, 분류에 큰 분류 표시가 없으면 소모품으로 */
 function tidy(){let ch=false;
@@ -650,7 +655,7 @@ function logRow(a){const it=itemById(a.itemId)||{name:'(삭제된 품목)',unit:
 
 /* ===== 입력 ===== */
 function vInput(){
-  const segs=[['buy','🛒 구매'],['bulk','📑 여러 품목 한 번에'],['count','📦 월말 재고'],['year','🎯 입장객·예산'],['excel','📥 엑셀 불러오기']];
+  const segs=[['buy','🛒 구매'],['bulk','📑 여러 품목 한 번에'],['count','📦 월말 재고'],['year','🎯 입장객·예산·단가'],['excel','📥 엑셀 불러오기']];
   return `<div class="seg" style="margin-top:16px">${segs.map(([k,l])=>`<button class="${inSeg===k?'on':''}" data-inseg="${k}">${l}</button>`).join('')}</div>`+
     ({buy:inBuy,bulk:inBulk,count:inCount,year:inYear,excel:inExcel}[inSeg])()}
 function buyFormHtml(p,ex){return `<div id="${p}form">${buyFormInner(p,ex)}</div>`}
@@ -721,6 +726,17 @@ function saveCount(){const ym=countYm,date=lastDay(ym);let n=0;
     const ex=S.stockLogs.find(l=>l.itemId===id&&l.date===date&&!l.legacy);
     upsert('stockLogs',{id:ex?ex.id:uid('s'),date,itemId:id,qty:Number(i.value),memo:'월말 재고'});n++});
   if(!n){toast('하나 이상 입력하세요');return}save();toast(`${ymKo(ym)} 말 재고 ${n}개 저장했어요`);render()}
+/* 연도별 단가: 그 해 구매 기록의 단가를 품목별로 한 번에 정리 */
+function yearPrice(it,Y){const ps=S.purchases.filter(p=>p.itemId===it.id&&p.date.slice(0,4)===String(Y)),pr=[...new Set(ps.filter(p=>has(p.price)).map(p=>Number(p.price)))];
+  return{n:ps.length,np:ps.filter(p=>has(p.price)).length,pr,amt:ps.reduce((s,p)=>s+amt(p),0),one:pr.length===1&&ps.every(p=>has(p.price))?pr[0]:null}}
+function yearPriceHtml(Y){const rows=consAll().map(it=>({it,y:yearPrice(it,Y)})).filter(r=>r.y.n||r.it.active!==false);
+  return `<div class="card"><h2>${Y}년 단가 <small>${VAT} · 주문 단위 기준</small><button class="btn sm" data-act="yprice-save">단가 저장</button></h2>
+    <div class="tw"><table style="min-width:560px"><thead><tr><th>품목</th><th class="num">구매</th><th class="num">단가 있는 구매</th><th class="num">${Y}년 구매액</th><th class="num">${Y}년 단가</th></tr></thead><tbody>
+    ${rows.map(({it,y})=>{const f=fac(it),v=y.one!=null?Math.round(y.one*f):'';
+      return `<tr><td>${esc(it.name)} <span style="color:var(--sub);font-size:12px">원/${esc(ouOf(it))}</span></td><td class="num">${y.n}건</td>
+        <td class="num">${y.n?(y.np===y.n?'<span class="tag t-ok">모두</span>':`<span class="tag ${y.np?'t-mute':'t-bad'}">${y.np}건</span>`):'-'}</td><td class="num">${y.amt?won(y.amt)+'원':'-'}</td>
+        <td class="num"><input class="num" type="number" inputmode="numeric" min="0" data-yp="${it.id}" data-orig="${v}" value="${v}" placeholder="${y.pr.length>1?'여러 단가 ('+y.pr.map(p=>won(p*f)).join(' / ')+')':y.n?'단가 입력':'구매 없음'}" ${y.n?'':'disabled'} style="width:${y.pr.length>1?220:130}px"></td></tr>`}).join('')}</tbody></table></div>
+    <div class="hint">· 여기 넣은 단가는 <b>${Y}년 그 품목의 구매 기록 전체</b>에 들어가요. 연 단위로 단가를 정리할 때 쓰세요.<br>· 해마다 연도를 바꿔 넣으면 돼요(예: 2025년 단가). 연중에 단가가 바뀌면 여기 대신 <b>구매 입력 때 단가를 고쳐서</b> 넣으면 그 구매부터 새 단가로 기록되고, 품목 상세의 단가 변동 이력에 남아요.</div></div>`}
 function inYear(){if(!yearSel)yearSel=new Date().getFullYear();const Y=yearSel,ms=[...Array(12)].map((_,i)=>Y+'-'+pad(i+1));
   const tot=k=>ms.reduce((s,m)=>s+(Number(S[k][m])||0),0);
   return `<div class="card"><h2>입장객 · 예산 <small>${VIS} 기준, 예산은 ${VAT}</small></h2>
@@ -732,7 +748,7 @@ function inYear(){if(!yearSel)yearSel=new Date().getFullYear();const Y=yearSel,m
       <td><input class="num" type="number" inputmode="numeric" data-yk="budgets" data-yi="${i}" data-ym="${m}" value="${S.budgets[m]??''}" placeholder="-"></td>
       <td class="num" style="color:var(--sub)">${spend(m)?won(spend(m)):'-'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>합계</td><td class="num">${won(tot('targets'))}</td><td class="num">${won(tot('visitors'))}</td><td class="num">${won(tot('budgets'))}</td><td class="num">${won(ms.reduce((s,m)=>s+spend(m),0))}</td></tr></tfoot></table></div>
-    <div class="hint">· 목표 입장객은 연초에 한 번, 실적 입장객은 매달 초에 지난달 칸만 채우세요.<br>· <b>예산은 선택</b>이에요. 회사 소모품 예산은 전체 소모품 기준이라 이 프로그램의 일부 품목과 바로 비교하기 어려워요. 관리 품목 몫을 따로 정했다면 넣고, 아니면 비워두세요. 비워두면 예산 표시는 숨기고 전월·작년 같은 달 구매액과 비교해요.<br>· 엑셀에서 12개월 숫자를 복사해 1월 칸에 붙여넣으면 아래로 한 번에 채워져요. 입력 후 꼭 <b>저장</b>을 누르세요.<br>· 지난 해(예: 2025년) 실적을 넣어두면 연간 구매계획이 같은 달 기준으로 더 정확해져요.</div></div>`}
+    <div class="hint">· 목표 입장객은 연초에 한 번, 실적 입장객은 매달 초에 지난달 칸만 채우세요.<br>· <b>예산은 선택</b>이에요. 회사 소모품 예산은 전체 소모품 기준이라 이 프로그램의 일부 품목과 바로 비교하기 어려워요. 관리 품목 몫을 따로 정했다면 넣고, 아니면 비워두세요. 비워두면 예산 표시는 숨기고 전월·작년 같은 달 구매액과 비교해요.<br>· 엑셀에서 12개월 숫자를 복사해 1월 칸에 붙여넣으면 아래로 한 번에 채워져요. 입력 후 꼭 <b>저장</b>을 누르세요.<br>· 지난 해(예: 2025년) 실적을 넣어두면 연간 구매계획이 같은 달 기준으로 더 정확해져요.</div></div>${yearPriceHtml(Y)}`}
 /* ===== 엑셀 불러오기: 소모품 입출고 엑셀(일자·입고 수량·불출 수량·남은 수량 블록)을 읽어 기간 안의 기록을 엑셀 기준으로 맞춤 ===== */
 let xlPrev=null,xlBusy=false;
 const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -1127,6 +1143,9 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
     case 'year-nav':yearSel+=D;render();break;
     case 'year-save':{let n=0;document.querySelectorAll('[data-yk]').forEach(i=>{const k=i.dataset.yk,m=i.dataset.ym,v=i.value===''?null:Number(i.value),c=S[k][m]??null;if(v!==c){setMap(k,m,v);n++}});
       save();render();toast(n?`${yearSel}년 입장객·예산을 저장했어요`:'바뀐 내용이 없어요');break}
+    case 'yprice-save':{let n=0,c=0;document.querySelectorAll('[data-yp]').forEach(el=>{if(el.disabled||el.value===el.dataset.orig||el.value==='')return;const it=itemById(el.dataset.yp),pr=Number(el.value)/fac(it);
+        S.purchases.filter(p=>p.itemId===it.id&&p.date.slice(0,4)===String(yearSel)).forEach(p=>{patch('purchases',p.id,{price:pr});c++});n++});
+      save();render();toast(n?`${yearSel}년 ${n}개 품목 · 구매 ${c}건에 단가를 넣었어요`:'바뀐 단가가 없어요');break}
     case 'new-item':itemForm(null);break;
     case 'edit-item':itemForm(d.id);break;
     case 'item-save':saveItem(d.id);break;

@@ -342,11 +342,11 @@ const PAL_SOFT=['#e3f4f0','#e3ecf7','#f5ebdd','#efe6f3','#f6e3e7','#ebefdd'];
 const ART=`<svg class="art" viewBox="0 0 200 200" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M70 60h36v-18h22"/><rect x="58" y="60" width="60" height="110" rx="18"/><path d="M74 110h28M74 132h28"/><rect x="132" y="96" width="44" height="74" rx="12"/><path d="M146 96v-12h16v12"/><path d="M40 52c-10-12 10-18 0-30M24 64c-10-12 10-18 0-30M176 70c-8-10 8-15 0-25"/></svg>`;
 
 let S=null, mode='local', fdb=null, docRef=null;
-let tab='home', inSeg='buy', itemCat='', showOff=false, logYm='', logType='', logItem='';
+let tab='home', inSeg='buy', itemCat='', showOff=false, logYear=0, logMon='', logType='', logItem='', logQ='', logLimit=60;
 let repSeg='month', repYm='', planYm='', planSrc='auto', planManual='', annYear=0, anaItem='', yearSel=0, countYm='';
 let buy=null, prefillBulk=null, detailId=null;
 const pref=(k,v)=>{try{if(v===undefined)return localStorage.getItem('sauna_pref_'+k);localStorage.setItem('sauna_pref_'+k,v)}catch(e){return null}};
-let apprOn=pref('appr')!=='0', lastItem=pref('last')||'';
+let lastItem=pref('last')||'';
 
 /* ---------- 도구 ---------- */
 const $=s=>document.querySelector(s);
@@ -524,8 +524,16 @@ function avgUse(id,base){base=base||curYm();const v=[];for(let i=0;i<8&&v.length
 function phStats(id){const ms=Object.keys(S.visitors).filter(m=>S.visitors[m]>0&&used(id,m)!=null).sort();if(!ms.length)return{n:0,ph:null,recent:null};
   const su=a=>a.reduce((s,m)=>s+used(id,m),0),sv=a=>a.reduce((s,m)=>s+S.visitors[m],0),r=ms.slice(-3);return{n:ms.length,ph:su(ms)/sv(ms),recent:su(r)/sv(r)}}
 function appliedPh(id){const v=S.perHeadSet[id];return has(v)?Number(v):phStats(id).ph}
-const isLow=it=>{const s=stockNow(it.id);return it.active!==false&&s!=null&&it.min>0&&s<it.min};
-function needQty(it){const s=stockNow(it.id)??0;return Math.max(it.min-s,Math.ceil(avgUse(it.id)+it.min-s))}
+/* 최소 보유량: 기본은 통계 자동 = (그 달·다음 달 중 큰) 예상 사용량 ÷ 그 달 일수 × 기준 일수(기본 14일치), 주문 단위로 올림. 성수기엔 커지고 비수기엔 작아져요 */
+const coverDays=()=>Number(S.meta.coverDays)||14;
+const dim=ym=>new Date(+ym.slice(0,4),+ym.slice(5),0).getDate();
+function autoMin(it,ym){ym=ym||curYm();const e=Math.max(expFor(it,ym).exp||0,expFor(it,addYm(ym,1)).exp||0);if(!e)return 0;return roundOrder(it,Math.ceil(e/dim(ym)*coverDays()))}
+const isManualMin=it=>it.minMode==='manual';
+const minOf=(it,ym)=>isManualMin(it)?(Number(it.min)||0):autoMin(it,ym);
+function useStats(id){const v=[...Array(12)].map((_,i)=>{const m=addYm(curYm(),-1-i);return{m,u:used(id,m)}}).filter(x=>x.u!=null);
+  if(!v.length)return null;const avg=v.reduce((s,x)=>s+x.u,0)/v.length,pk=v.reduce((a,b)=>b.u>a.u?b:a);return{n:v.length,avg,peak:pk}}
+const isLow=it=>{const s=stockNow(it.id),mn=minOf(it);return it.active!==false&&s!=null&&mn>0&&s<mn};
+function needQty(it){const s=stockNow(it.id)??0,mn=minOf(it);return Math.max(mn-s,Math.ceil(avgUse(it.id)+mn-s))}
 function prevPrice(p){const pr=S.purchases.filter(x=>x.itemId===p.itemId&&has(x.price)&&(x.date<p.date||(x.date===p.date&&x.id<p.id))).sort((a,b)=>a.date.localeCompare(b.date)).pop();return pr?pr.price:null}
 function planVisitors(T){const tg=Number(S.targets[T])||0,yoy=S.visitors[addYm(T,-12)]||0,prev=S.visitors[addYm(T,-1)]||0;
   const l3=[1,2,3].map(i=>S.visitors[addYm(T,-i)]||0).filter(v=>v>0);const avg3=l3.length?Math.round(l3.reduce((a,b)=>a+b,0)/l3.length):0;
@@ -534,7 +542,7 @@ function planVisitors(T){const tg=Number(S.targets[T])||0,yoy=S.visitors[addYm(T
 function planRows(T,vis){const startDate=lastDay(addYm(T,-1));
   return active().map(it=>{const ph=appliedPh(it.id),au=avgUse(it.id);const exp=ph!=null&&vis?vis*ph:au;
     const st=T<=curYm()?stockNow(it.id):stockAt(it.id,startDate)??stockNow(it.id);const pr=priceOf(it);
-    const rec=roundOrder(it,Math.max(0,Math.ceil(exp+it.min-(st??0))));return{it,exp,st,rec,price:pr,amt:rec*(pr||0),basis:ph!=null&&vis?'입장객 기준':au?'최근 평균':'자료 없음'}})}
+    const mn=minOf(it,T),rec=roundOrder(it,Math.max(0,Math.ceil(exp+mn-(st??0))));return{it,exp,st,rec,min:mn,price:pr,amt:rec*(pr||0),basis:ph!=null&&vis?'입장객 기준':au?'최근 평균':'자료 없음'}})}
 /* 연간 계획: 같은 달의 1인당 사용량(지난 해들 평균) × 그 해 목표 입장객 → 월별 사용량 예측 → 재고를 이어가며 구매량 계산 */
 function expFor(it,m){
   const tg=Number(S.targets[m])||0,ov=has(S.perHeadSet[it.id])?Number(S.perHeadSet[it.id]):null;
@@ -549,9 +557,9 @@ function annualPlan(Y){
   const months=[...Array(12)].map((_,i)=>Y+'-'+pad(i+1)),startYm=curYm();
   const rows=active().map(it=>{
     let stock=stockNow(it.id)??0;
-    for(let m=startYm;m<months[0];m=addYm(m,1)){const e=expFor(it,m).exp;stock=stock+roundOrder(it,Math.max(0,Math.ceil(e+it.min-stock)))-e}
+    for(let m=startYm;m<months[0];m=addYm(m,1)){const e=expFor(it,m).exp;stock=stock+roundOrder(it,Math.max(0,Math.ceil(e+minOf(it,m)-stock)))-e}
     const cells=months.map(m=>{const {exp,basis}=expFor(it,m);let qty=0;
-      if(m>=startYm){qty=roundOrder(it,Math.max(0,Math.ceil(exp+it.min-stock)));stock=stock+qty-exp}
+      if(m>=startYm){qty=roundOrder(it,Math.max(0,Math.ceil(exp+minOf(it,m)-stock)));stock=stock+qty-exp}
       return{m,exp,qty,amt:qty*(priceOf(it)||0),basis,past:m<startYm}});
     return{it,cells}});
   return{months,rows}}
@@ -591,11 +599,10 @@ function diagnose(){const out=[],ym=curYm(),pm=addYm(ym,-1),day=new Date().getDa
   if(noCnt.length)out.push({k:'warn',t:`${mKo(pm)} 말 재고가 비어 있어요`,s:`${noCnt.length}개 품목 · 입력하면 ${mKo(pm)} 사용량이 계산돼요`,b:'재고 입력',act:'go-count'});
   if(!S.visitors[pm])out.push({k:'warn',t:`${mKo(pm)} 실적 입장객이 없어요`,s:'1인당 사용량과 구매량 계산에 쓰여요',b:'입장객 입력',act:'go-year'});
   if(!S.targets[ym]&&!S.targets[addYm(ym,1)])out.push({k:'warn',t:'목표 입장객이 없어요',s:`${mKo(ym)}·${mKo(addYm(ym,1))} 목표가 있으면 구매량이 더 정확해요`,b:'목표 입력',act:'go-year'});
-  if(!budgetOf(ym))out.push({k:'warn',t:`${mKo(ym)} 예산이 없어요`,s:'예산을 넣으면 집행률을 보여드려요',b:'예산 입력',act:'go-year'});
   const np=active().filter(i=>!priceOf(i));
   if(np.length)out.push({k:'warn',t:`단가가 없는 품목 ${np.length}개`,s:np.map(i=>i.name).join(', ')+' — 구매 입력 때 단가를 넣으면 기억해요',b:'품목 보기',act:'go-items'});
   if(day>=25&&active().some(i=>countOf(i.id,ym)==null))out.push({k:'warn',t:`곧 ${mKo(ym)} 말이에요`,s:'월말에 창고 수량을 세서 재고를 입력해 주세요',b:'재고 입력',act:'go-count'});
-  if(!out.length)out.push({k:'ok',t:'모든 항목이 정상이에요',s:'재고·입장객·예산이 모두 입력되어 있어요'});
+  if(!out.length)out.push({k:'ok',t:'모든 항목이 정상이에요',s:'재고·입장객이 모두 입력되어 있어요'});
   return out}
 function vHome(){
   const ym=curYm(),nx=addYm(ym,1),cur=spend(ym),bud=budgetOf(ym),pct=bud?cur/bud*100:0,low=active().filter(isLow);
@@ -609,7 +616,7 @@ function vHome(){
     <div class="kpis">
       <button class="kpi" data-act="go-items"><div class="l">관리 품목</div><div class="v num">${active().length}<span>개</span></div><div class="s">분류 ${cats().length}개</div></button>
       <button class="kpi" data-act="go-report"><div class="l">${mKo(ym)} 구매액</div><div class="v num">${won(cur/10000)}<span>만원</span></div>
-        ${bud?`<div class="bar ${pct>100?'over':''}"><i style="width:${Math.min(100,pct)}%"></i></div><div class="s">예산의 ${pct.toFixed(0)}%</div>`:'<div class="s">예산 미입력</div>'}</button>
+        ${bud?`<div class="bar ${pct>100?'over':''}"><i style="width:${Math.min(100,pct)}%"></i></div><div class="s">예산의 ${pct.toFixed(0)}%</div>`:`<div class="s">지난달 ${won(spend(addYm(ym,-1))/10000)}만원</div>`}</button>
       <button class="kpi ${low.length?'warn':''}" data-act="go-items"><div class="l">부족한 품목</div><div class="v num">${low.length}<span>개</span></div><div class="s">${low.length?'구매가 필요해요':'모두 충분해요'}</div></button>
       <button class="kpi" data-act="go-plan"><div class="l">${mKo(nx)} 예상 구매액</div><div class="v num">${won(ptotal/10000)}<span>만원</span></div><div class="s">${pbuy.length}개 품목 구매 예정</div></button>
     </div>
@@ -628,7 +635,7 @@ function vHome(){
     ${cats().map(c=>{const its=active().filter(i=>i.catId===c.id);if(!its.length)return'';
       return `<div class="grp" style="--gc:${cc(c)}"><div class="grp-h"><b>${esc(c.name)}</b><span>${its.length}개 품목</span></div><div class="items">
       ${its.map(it=>{const st=stockNow(it.id),lw=isLow(it);return `<button class="item ${lw?'low':''} ${st==null?'none':''}" data-item="${it.id}">${lw?'<span class="lowtag">부족</span>':''}
-        <div class="nm">${esc(it.name)}</div><div class="ok">${st==null?'-':fmt1(st)}<span>${esc(it.unit)}</span></div><div class="mn">최소 ${it.min||0}${esc(it.unit)}</div></button>`}).join('')}</div></div>`}).join('')}
+        <div class="nm">${esc(it.name)}</div><div class="ok">${st==null?'-':fmt1(st)}<span>${esc(it.unit)}</span></div><div class="mn">최소 ${minOf(it)}${esc(it.unit)}</div></button>`}).join('')}</div></div>`}).join('')}
     ${active().some(i=>!catById(i.catId))?`<div class="grp" style="--gc:#7d8d8a"><div class="grp-h"><b>미분류</b></div><div class="items">${active().filter(i=>!catById(i.catId)).map(it=>`<button class="item" data-item="${it.id}"><div class="nm">${esc(it.name)}</div><div class="ok">${fmt1(stockNow(it.id))}<span>${esc(it.unit)}</span></div></button>`).join('')}</div></div>`:''}
     ${!active().length?'<div class="empty">품목이 없어요. 품목 메뉴에서 추가하세요.</div>':''}</div>
   <div class="card"><h2>최근 기록 <button class="link" data-act="go-log">전체 보기 ›</button></h2>
@@ -718,14 +725,14 @@ function inYear(){if(!yearSel)yearSel=new Date().getFullYear();const Y=yearSel,m
   const tot=k=>ms.reduce((s,m)=>s+(Number(S[k][m])||0),0);
   return `<div class="card"><h2>입장객 · 예산 <small>${VIS} 기준, 예산은 ${VAT}</small></h2>
     <div class="bar-row" style="margin-top:0">${monNav('year-nav','',Y+'년')}<button class="btn sm" data-act="year-save">저장</button></div>
-    <div class="tw"><table style="min-width:520px"><thead><tr><th>월</th><th class="num">목표 입장객</th><th class="num">실적 입장객</th><th class="num">소모품 예산(원)</th><th class="num">실제 구매액</th></tr></thead><tbody>
+    <div class="tw"><table style="min-width:520px"><thead><tr><th>월</th><th class="num">목표 입장객</th><th class="num">실적 입장객</th><th class="num">관리 품목 예산(선택)</th><th class="num">실제 구매액</th></tr></thead><tbody>
     ${ms.map((m,i)=>`<tr><td>${i+1}월</td>
       <td><input class="num" type="number" inputmode="numeric" data-yk="targets" data-yi="${i}" data-ym="${m}" value="${S.targets[m]??''}" placeholder="-"></td>
       <td><input class="num" type="number" inputmode="numeric" data-yk="visitors" data-yi="${i}" data-ym="${m}" value="${S.visitors[m]??''}" placeholder="-"></td>
       <td><input class="num" type="number" inputmode="numeric" data-yk="budgets" data-yi="${i}" data-ym="${m}" value="${S.budgets[m]??''}" placeholder="-"></td>
       <td class="num" style="color:var(--sub)">${spend(m)?won(spend(m)):'-'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>합계</td><td class="num">${won(tot('targets'))}</td><td class="num">${won(tot('visitors'))}</td><td class="num">${won(tot('budgets'))}</td><td class="num">${won(ms.reduce((s,m)=>s+spend(m),0))}</td></tr></tfoot></table></div>
-    <div class="hint">· 목표 입장객·예산은 연초에 한 번, 실적 입장객은 매달 초에 지난달 칸만 채우세요.<br>· 엑셀에서 12개월 숫자를 복사해 1월 칸에 붙여넣으면 아래로 한 번에 채워져요. 입력 후 꼭 <b>저장</b>을 누르세요.<br>· 지난 해(예: 2025년) 실적을 넣어두면 연간 구매계획이 같은 달 기준으로 더 정확해져요.</div></div>`}
+    <div class="hint">· 목표 입장객은 연초에 한 번, 실적 입장객은 매달 초에 지난달 칸만 채우세요.<br>· <b>예산은 선택</b>이에요. 회사 소모품 예산은 전체 소모품 기준이라 이 프로그램의 일부 품목과 바로 비교하기 어려워요. 관리 품목 몫을 따로 정했다면 넣고, 아니면 비워두세요. 비워두면 예산 표시는 숨기고 전월·작년 같은 달 구매액과 비교해요.<br>· 엑셀에서 12개월 숫자를 복사해 1월 칸에 붙여넣으면 아래로 한 번에 채워져요. 입력 후 꼭 <b>저장</b>을 누르세요.<br>· 지난 해(예: 2025년) 실적을 넣어두면 연간 구매계획이 같은 달 기준으로 더 정확해져요.</div></div>`}
 /* ===== 엑셀 불러오기: 소모품 입출고 엑셀(일자·입고 수량·불출 수량·남은 수량 블록)을 읽어 기간 안의 기록을 엑셀 기준으로 맞춤 ===== */
 let xlPrev=null,xlBusy=false;
 const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -813,7 +820,7 @@ function itemDetail(id){const it=itemById(id);if(!it)return;detailId=id;const st
         <div style="font-size:13px;color:var(--sub);margin-top:2px">${esc(it.spec||'')}${fac(it)>1?` · 1${esc(it.orderUnit)} = ${it.pack}${esc(it.unit)}`:''}</div>
         <div style="margin-top:6px">${it.active===false?'<span class="tag t-mute">사용 안 함</span>':lw?'<span class="tag t-bad">최소 보유량보다 적어요</span>':st!=null?'<span class="tag t-ok">충분해요</span>':''}</div></div></div>
     <div class="dq"><div><span>남은 수량</span><b class="num" style="color:${lw?'var(--red)':'inherit'}">${st==null?'-':fmt1(st)} ${esc(it.unit)}</b></div>
-      <div><span>최소 보유량</span><b class="num">${it.min||0} ${esc(it.unit)}</b></div><div><span>단가</span><b class="num" style="font-size:15px">${priceTxt(it)||'-'}</b></div></div>
+      <div><span>최소 보유량 <small style="color:var(--sub)">${isManualMin(it)?'직접':'자동 '+coverDays()+'일치'}</small></span><b class="num">${minOf(it)} ${esc(it.unit)}</b></div><div><span>단가</span><b class="num" style="font-size:15px">${priceTxt(it)||'-'}</b></div></div>
     <div class="btns" style="margin-top:0"><button class="btn" data-act="buy-this" data-id="${id}">＋ 구매 입력</button><button class="btn ghost" data-act="count-this" data-id="${id}">재고 수정</button></div>
     <table style="margin-top:14px;font-size:13px"><tbody>
       <tr><td style="color:var(--sub);width:92px">구매처</td><td>${v?`${esc(v.name)}${v.contact||v.phone?` <span style="color:var(--sub)">· ${esc(v.contact)} ${esc(v.phone)}</span>`:''}`:'<span style="color:var(--sub)">미입력 · 구매 입력 때 고르면 기억해요</span>'}</td></tr>
@@ -822,9 +829,23 @@ function itemDetail(id){const it=itemById(id);if(!it)return;detailId=id;const st
     <div style="font-size:12px;color:var(--sub);font-weight:700;margin:14px 0 6px">월별 사용량</div>
     <div style="display:flex;gap:6px;align-items:flex-end;height:78px">${ms.map((m,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0">
       <span class="num" style="font-size:11px;color:var(--sub)">${us[i]==null?'':fmt1(us[i])}</span><div style="width:70%;height:${us[i]?Math.max(3,us[i]/mx*44):2}px;background:${us[i]?'var(--main)':'var(--line)'};border-radius:3px 3px 0 0"></div><span style="font-size:11px;color:var(--sub)">${mKo(m)}</span></div>`).join('')}</div>
+    <div style="font-size:12px;color:var(--sub);font-weight:700;margin:16px 0 6px">단가 변동 이력 <span style="font-weight:400">(${VAT}${fac(it)>1?' · '+esc(it.orderUnit)+' 기준':''})</span></div>
+    ${priceHistHtml(it)}
     <div style="font-size:12px;color:var(--sub);font-weight:700;margin:14px 0 2px">최근 기록</div>
     ${hist.length?hist.map(logRow).join(''):'<div class="empty">기록이 없어요.</div>'}
     <div class="btns"><button class="btn gray" data-act="edit-item" data-id="${id}">품목 정보 수정 · 삭제</button></div>`,true)}
+/* 단가 변동 이력: 단가가 있는 구매를 날짜순으로 보고, 단가가 바뀐 시점만 한 줄씩 */
+function priceHist(it){const ps=S.purchases.filter(p=>p.itemId===it.id&&has(p.price)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  const out=[];ps.forEach(p=>{const L=out[out.length-1];if(L&&L.price===p.price){L.n++;L.to=p.date;L.qty+=p.qty;return}
+    out.push({from:p.date,to:p.date,price:p.price,prev:L?L.price:null,n:1,qty:p.qty,vendorId:p.vendorId})});return out}
+function priceHistHtml(it){const h=priceHist(it),last=h[h.length-1],nextP=has(it.price)?Number(it.price):null;
+  const pend=nextP!=null&&(!last||Math.abs(nextP-last.price)>1e-6);
+  if(!h.length&&!pend)return '<div class="empty" style="padding:10px">단가가 있는 구매 기록이 없어요. 구매 입력 때 단가를 넣으면 여기에 쌓여요.</div>';
+  const chg=(a,b)=>b==null?'<span class="tag t-mute">최초</span>':`<span class="tag ${a>b?'t-bad':'t-ok'}">${a>b?'▲':'▼'} ${(Math.abs(a-b)/b*100).toFixed(1)}%</span>`;
+  return `<div class="tw"><table style="font-size:13px;min-width:420px"><thead><tr><th>적용 시작</th><th class="num">단가</th><th>변동</th><th>구매처</th><th class="num">구매</th></tr></thead><tbody>
+    ${pend?`<tr style="background:var(--mainS,#e6f4f1)"><td>다음 구매부터</td><td class="num"><b>${priceTxt(it,nextP)}</b></td><td>${last?chg(nextP,last.price):'<span class="tag t-mute">기본 단가</span>'}</td><td>${esc((vendorById(it.vendorId)||{}).name||'-')}</td><td class="num" style="color:var(--sub)">예정</td></tr>`:''}
+    ${h.slice().reverse().map(r=>`<tr><td style="white-space:nowrap">${r.from.replace(/-/g,'.')}</td><td class="num"><b>${priceTxt(it,r.price)}</b></td><td>${chg(r.price,r.prev)}</td><td>${esc((vendorById(r.vendorId)||{}).name||'-')}</td><td class="num">${r.n}건</td></tr>`).join('')}</tbody></table></div>
+    <div class="hint" style="margin-top:4px">단가는 구매할 때마다 그 구매 기록에 함께 저장돼요. 예전 구매의 금액은 바뀌지 않아요.</div>`}
 function itemForm(id){const it=id?itemById(id):newItem({catId:itemCat||cats()[0]?.id||''});
   const nRec=id?S.purchases.filter(p=>p.itemId===id).length+S.stockLogs.filter(l=>l.itemId===id).length:0;
   openSheet(`<h3>${id?'품목 정보 수정':'품목 추가'}<button class="x" data-act="close">×</button></h3>
@@ -832,7 +853,8 @@ function itemForm(id){const it=id?itemById(id):newItem({catId:itemCat||cats()[0]
     <div class="row2"><div><label for="fc">분류</label><select id="fc">${cats().map(c=>`<option value="${c.id}" ${c.id===it.catId?'selected':''}>${esc(c.name)}</option>`).join('')}<option value="" ${!it.catId?'selected':''}>미분류</option></select></div>
       <div><label for="fu">세는 단위</label><input id="fu" value="${esc(it.unit)}" placeholder="통, 박스"></div></div>
     <div class="row2"><div><label for="fp">기본 단가 (원/${esc(ouOf(it))}, ${VAT})</label><input id="fp" class="num" type="number" inputmode="numeric" min="0" value="${has(it.price)?Math.round(it.price*fac(it)):''}" placeholder="${lastPrice(it.id)?'최근 '+won(lastPrice(it.id)):'비우면 최근 구매 단가'}"></div>
-      <div><label for="fmn">최소 보유량</label><input id="fmn" class="num" type="number" inputmode="decimal" min="0" value="${it.min||''}" placeholder="0"></div></div>
+      <div><label for="fmn">최소 보유량 (${esc(it.unit)})</label><input id="fmn" class="num" type="number" inputmode="decimal" min="0" value="${isManualMin(it)&&it.min?it.min:''}" placeholder="자동 ${id?minOf(it):''}"></div></div>
+    ${minBoxHtml(it,id)}
     <label for="fv">주로 사는 곳</label><select id="fv"><option value="">선택 안 함</option>${S.vendors.map(v=>`<option value="${v.id}" ${v.id===it.vendorId?'selected':''}>${esc(v.name)}</option>`).join('')}</select>
     <div class="row2"><div><label for="fs">규격 (선택)</label><input id="fs" value="${esc(it.spec)}" placeholder="20L 말통"></div><div></div></div>
     <div class="row2"><div><label for="fo">주문 단위 (선택)</label><input id="fo" value="${esc(it.orderUnit||'')}" placeholder="예: box"></div><div><label for="fk">주문 단위당 개수</label><input id="fk" class="num" type="number" inputmode="numeric" min="1" value="${fac(it)>1?it.pack:''}" placeholder="예: 10"></div></div>
@@ -842,9 +864,15 @@ function itemForm(id){const it=id?itemById(id):newItem({catId:itemCat||cats()[0]
     <div class="btns"><button class="btn gray" data-act="close">취소</button><button class="btn" data-act="item-save" data-id="${id||''}">저장</button></div>
     ${id?`<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:12px"><button class="btn danger-soft sm" data-act="item-del" data-id="${id}">완전히 삭제${nRec?` (기록 ${nRec}건 포함)`:''}</button>
       <div class="hint">${nRec?'삭제하면 이 품목의 구매·재고 기록도 모두 지워지고 되돌릴 수 없어요. 보통은 "사용 안 함"을 권해요.':'기록이 없는 품목이에요.'}</div></div>`:''}`)}
+function minBoxHtml(it,id){const man=isManualMin(it),us=id?useStats(id):null,cd=coverDays(),r=d=>us?roundOrder(it,Math.ceil(us.avg/30.4*d)):null;
+  return `<div class="note info" style="margin-top:8px"><div style="display:flex;gap:14px;flex-wrap:wrap"><label class="chk" style="margin:0"><input type="radio" name="fmm" value="auto" ${man?'':'checked'}> 자동 (통계)</label><label class="chk" style="margin:0"><input type="radio" name="fmm" value="manual" ${man?'checked':''}> 직접 입력</label></div>
+    <div style="margin-top:6px;font-size:13px">${us?`최근 ${us.n}개월 평균 <b>${fmt1(Math.round(us.avg*10)/10)}${esc(it.unit)}</b>/월 · 가장 많이 쓴 달 ${mKo(us.peak.m)} <b>${fmt1(us.peak.u)}${esc(it.unit)}</b><br>
+      평균 기준 제안: 7일치 <b>${r(7)}</b> · 14일치 <b>${r(14)}</b> · 30일치 <b>${r(30)}</b>${esc(it.unit)}<br>
+      자동이면 이번 달 <b>${autoMin(it)}${esc(it.unit)}</b> (이번 달·다음 달 중 많은 쪽 예상 사용량의 ${cd}일치 · 성수기엔 늘고 비수기엔 줄어요)`
+      :'사용량 자료가 쌓이면 자동으로 계산돼요. 그 전에는 직접 입력을 쓰세요.'}</div></div>`}
 function saveItem(id){const pv=$('#fp').value,ou=$('#fo').value.trim(),pk=Number($('#fk').value)||1,f=ou&&pk>1?pk:1;
   const d={name:$('#fn').value.trim(),catId:$('#fc').value,spec:$('#fs').value.trim(),unit:$('#fu').value.trim()||'개',orderUnit:f>1?ou:'',pack:f>1?pk:1,
-  price:pv===''?null:Number(pv)/f,min:Number($('#fmn').value)||0,vendorId:$('#fv').value,memo:$('#fme').value.trim()};if(!d.name){toast('품목 이름을 입력하세요');return}
+  price:pv===''?null:Number(pv)/f,min:Number($('#fmn').value)||0,minMode:(document.querySelector('input[name=fmm]:checked')||{}).value==='manual'?'manual':'auto',vendorId:$('#fv').value,memo:$('#fme').value.trim()};if(!d.name){toast('품목 이름을 입력하세요');return}
   if(id){d.active=!$('#foff').checked;patch('items',id,d)}else{const n=newItem(d);upsert('items',n);id=n.id}save();render();toast(d.name+' 저장했어요');itemDetail(id)}
 function countOne(id,logId){const ex=logId?S.stockLogs.find(l=>l.id===logId):null;const it=itemById(ex?ex.itemId:id);if(!it)return;const st=stockNow(it.id);
   openSheet(`<h3>${ex?'재고 기록 수정':'재고 수정'}<button class="x" data-act="close">×</button></h3><p class="desc">${esc(it.name)} — 창고에 실제로 남은 수량을 세서 입력하세요.</p>
@@ -860,19 +888,45 @@ function setPhoto(id,file){if(!file)return;const rd=new FileReader();rd.onload=(
   patch('items',id,{photo:c.toDataURL('image/jpeg',0.72)});save();render();itemDetail(id);toast('사진을 저장했어요')};img.onerror=()=>toast('이미지를 읽을 수 없어요');img.src=rd.result};rd.readAsDataURL(file)}
 
 /* ===== 기록 ===== */
-function vLog(){if(!logYm)logYm=curYm();
-  let list=activities().filter(a=>ymOf(a.date)===logYm&&(!logType||a.k===logType)&&(!logItem||a.itemId===logItem));
-  const buys=list.filter(a=>a.k==='buy'),total=buys.reduce((s,a)=>s+amt(a.p),0),np=buys.filter(a=>!has(a.p.price)).length;
-  const g={};list.forEach(a=>(g[a.date]=g[a.date]||[]).push(a));
-  return `<div class="bar-row" style="margin-top:16px">${monNav('log-mon',logYm)}
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="logType" style="width:auto"><option value="">전체 기록</option><option value="buy" ${logType==='buy'?'selected':''}>구매만</option><option value="count" ${logType==='count'?'selected':''}>재고만</option></select>
-      <select id="logItem" style="width:auto"><option value="">전체 품목</option>${consAll().map(i=>`<option value="${i.id}" ${logItem===i.id?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div></div>
-    <div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><div class="l">구매 건수</div><div class="v num">${buys.length}<span>건</span></div></div>
-      <div class="kpi"><div class="l">구매 금액</div><div class="v num">${won(total)}<span>원</span></div>${np?`<div class="s">단가 없는 구매 ${np}건 제외</div>`:''}</div>
-      <div class="kpi"><div class="l">재고 확인</div><div class="v num">${list.length-buys.length}<span>건</span></div></div></div>
-    <div class="card">${list.length?Object.entries(g).map(([d,as])=>`<div class="dh">${+d.slice(5,7)}월 ${+d.slice(8)}일 (${'일월화수목금토'[new Date(d+'T00:00').getDay()]})</div>${as.map(logRow).join('')}`).join('')
-      :'<div class="empty">이 달의 기록이 없어요.</div>'}</div>
+function vLog(){if(!logYear)logYear=new Date().getFullYear();const Y=String(logYear),cur=curYm(),months=[...Array(12)].map((_,i)=>Y+'-'+pad(i+1));
+  const inY=a=>a.date.slice(0,4)===Y;
+  const yb=S.purchases.filter(p=>isConsId(p.itemId)&&p.date.slice(0,4)===Y),ytot=yb.reduce((s,p)=>s+amt(p),0),ynp=yb.filter(p=>!has(p.price)).length,ycn=S.stockLogs.filter(l=>isConsId(l.itemId)&&l.date.slice(0,4)===Y).length;
+  const pyb=S.purchases.filter(p=>isConsId(p.itemId)&&p.date.slice(0,4)===String(+Y-1)).reduce((s,p)=>s+amt(p),0);
+  const items=consAll().filter(it=>(!logItem||it.id===logItem)&&(it.active!==false||S.purchases.some(p=>p.itemId===it.id&&p.date.slice(0,4)===Y)));
+  const grid=items.map(it=>{const cells=months.map(m=>{const fut=m>cur,b=boughtQty(it.id,m),u=fut?null:used(it.id,m),c=countOf(it.id,m);
+      const end=fut?null:c!=null?c:m===cur?stockNow(it.id):stockAt(it.id,lastDay(m));return{m,fut,b,u,end,est:!fut&&c==null&&end!=null,now:m===cur&&c==null}});
+    const umax=Math.max(1,...cells.map(c=>c.u||0)),last=cells.filter(c=>c.end!=null).pop();
+    return{it,cells,umax,tb:cells.reduce((s,c)=>s+c.b,0),tu:cells.reduce((s,c)=>s+(c.u||0),0),nu:cells.filter(c=>c.u!=null).length,last}});
+  const heat=(v,mx)=>v==null?'':`background:rgba(17,117,106,${(0.06+0.34*Math.max(0,v)/mx).toFixed(2)})`;
+  const f1=v=>v==null?'-':fmt1(Math.round(v*10)/10);
+  return `<div class="bar-row" style="margin-top:16px">${monNav('log-year','',Y+'년')}
+      <div class="seg small" style="flex-wrap:wrap;margin:0"><button class="${!logItem?'on':''}" data-logitem="">전체 품목</button>${consAll().filter(i=>i.active!==false).map(i=>`<button class="${logItem===i.id?'on':''}" data-logitem="${i.id}">${esc(i.name)}</button>`).join('')}</div></div>
+    <div class="kpis"><div class="kpi"><div class="l">${Y}년 구매 건수</div><div class="v num">${yb.length}<span>건</span></div></div>
+      <div class="kpi"><div class="l">${Y}년 구매 금액</div><div class="v num">${won(ytot/10000)}<span>만원</span></div><div class="s">${ynp?`단가 없는 구매 ${ynp}건 제외`:pyb?`작년 ${won(pyb/10000)}만원`:''}</div></div>
+      <div class="kpi"><div class="l">재고 확인</div><div class="v num">${ycn}<span>건</span></div></div>
+      <div class="kpi"><div class="l">사용량 계산된 달</div><div class="v num">${grid.length?Math.max(...grid.map(g=>g.nu)):0}<span>개월</span></div><div class="s">월말 재고가 있는 달</div></div></div>
+    <div class="card"><h2>${Y}년 월별 현황 <small>구매 · 사용(자동 계산) · 월말 재고</small></h2>
+      ${grid.length?`<div class="tw"><table class="ygrid" style="min-width:900px;font-size:13px"><thead><tr><th>품목</th><th></th>${months.map(m=>`<th class="num"><button class="link" data-logmon="${m.slice(5)}" title="${mKo(m)} 기록 보기">${+m.slice(5)}월</button></th>`).join('')}<th class="num">합계</th></tr></thead><tbody>
+        ${grid.map(g=>`<tr class="click" data-item="${g.it.id}"><td rowspan="3" style="vertical-align:top;border-right:1px solid var(--line)"><b>${esc(g.it.name)}</b><div style="font-size:11px;color:var(--sub)">${esc(g.it.unit)}${fac(g.it)>1?` · 1${esc(g.it.orderUnit)}=${g.it.pack}`:''}</div></td>
+            <td style="color:var(--sub);white-space:nowrap">구매</td>${g.cells.map(c=>`<td class="num" title="${fac(g.it)>1&&c.b?qtyTxt(g.it,c.b):''}">${c.b?fmt1(c.b):'<span style="color:#c3ceca">-</span>'}</td>`).join('')}<td class="num"><b>${fmt1(g.tb)}</b></td></tr>
+          <tr><td style="color:var(--sub);white-space:nowrap">사용</td>${g.cells.map(c=>`<td class="num" style="${heat(c.u,g.umax)}"><b>${c.u==null?'<span style="color:#c3ceca;font-weight:400">-</span>':f1(c.u)}</b></td>`).join('')}<td class="num"><b>${fmt1(Math.round(g.tu*10)/10)}</b></td></tr>
+          <tr style="border-bottom:2px solid var(--line)"><td style="color:var(--sub);white-space:nowrap">월말 재고</td>${g.cells.map(c=>`<td class="num" style="${c.est?'color:var(--sub);font-style:italic':''}" title="${c.now?'지금 재고':c.est?'재고 기록이 없어 구매로 추정':''}">${c.end==null?'<span style="color:#c3ceca">-</span>':f1(c.end)}${c.now?'<div style="font-size:10px;color:var(--main)">현재</div>':''}</td>`).join('')}<td class="num" style="color:var(--sub)">${g.last?f1(g.last.end):'-'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="hint">· 사용 = 지난달 말 재고 + 구매 − 이번 달 말 재고 (자동 계산, 진할수록 많이 쓴 달) · 월말 재고 기록이 없는 달은 비어 있어요.<br>· 기울어진 회색 숫자는 재고 기록 없이 구매로 추정한 값이에요. 이번 달은 지금 재고를 보여줘요. 월을 누르면 아래에 그 달 기록만 보여요.</div>`
+      :'<div class="empty">품목이 없어요.</div>'}</div>
+    <div class="card" id="logListCard"><h2>날짜별 기록</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><select id="logMon" style="width:auto"><option value="">${Y}년 전체</option>${months.map(m=>`<option value="${m.slice(5)}" ${logMon===m.slice(5)?'selected':''}>${+m.slice(5)}월</option>`).join('')}</select>
+        <select id="logType" style="width:auto"><option value="">구매 + 재고</option><option value="buy" ${logType==='buy'?'selected':''}>구매만</option><option value="count" ${logType==='count'?'selected':''}>재고만</option></select>
+        <input id="logQ" type="search" placeholder="품목·메모 검색" value="${esc(logQ)}" style="flex:1;min-width:140px"></div>
+      <div id="logList">${logListHtml()}</div></div>
     <div class="hint">기록을 누르면 수정하거나 삭제할 수 있어요.</div>`}
+function logListHtml(){const Y=String(logYear),q=logQ.trim().toLowerCase();
+  const list=activities().filter(a=>a.date.slice(0,4)===Y&&(!logMon||a.date.slice(5,7)===logMon)&&(!logType||a.k===logType)&&(!logItem||a.itemId===logItem)
+    &&(!q||((itemById(a.itemId)||{}).name||'').toLowerCase().includes(q)||((a.p||a.l).memo||'').toLowerCase().includes(q)||((vendorById((a.p||{}).vendorId)||{}).name||'').toLowerCase().includes(q)));
+  if(!list.length)return '<div class="empty">조건에 맞는 기록이 없어요.</div>';
+  const shown=list.slice(0,logLimit),g={};shown.forEach(a=>(g[a.date]=g[a.date]||[]).push(a));
+  return `<div style="font-size:12px;color:var(--sub);margin-bottom:4px">${list.length}건${list.length>shown.length?` 중 ${shown.length}건 표시`:''}</div>`+
+    Object.entries(g).map(([d,as])=>`<div class="dh">${+d.slice(5,7)}월 ${+d.slice(8)}일 (${'일월화수목금토'[new Date(d+'T00:00').getDay()]})</div>${as.map(logRow).join('')}`).join('')+
+    (list.length>shown.length?`<div class="btns"><button class="btn ghost" data-act="log-more">더 보기 (${list.length-shown.length}건 남음)</button></div>`:'')}
 
 /* ===== 보고서 ===== */
 function vReport(){if(!repYm)repYm=new Date().getDate()<=10?addYm(curYm(),-1):curYm();if(!planYm)planYm=new Date().getDate()<=10?curYm():addYm(curYm(),1);if(!annYear)annYear=new Date().getFullYear()+(new Date().getMonth()>=9?1:0);
@@ -890,27 +944,25 @@ function repMonth(){const ym=repYm,nx=addYm(ym,1),cur=spend(ym),bud=budgetOf(ym)
   if(rows.some(r=>r.end==null))notes.push(`월말 재고가 없는 품목은 사용량을 계산하지 않았어요.`);
   if(!vis)notes.push(`${mKo(ym)} 실적 입장객이 없어 1인당 비용을 계산하지 않았어요.`);
   return `<div class="card rep-tools no-print">${monNav('rep-mon',ym)}
-      <label class="chk" style="margin:0"><input type="checkbox" id="repAppr" ${apprOn?'checked':''}> 결재란</label>
       <button class="btn" data-act="print">📄 PDF 저장 / 인쇄</button>
       <div class="hint" style="flex:0 0 100%;margin:0">인쇄 창에서 대상을 <b>PDF로 저장</b>으로 고르면 PDF 파일이 돼요. 휴대폰은 공유 → 인쇄 → PDF 저장을 쓰세요.</div></div>
   <div class="paper" id="reportPaper">
-    <div class="rh"><div><h1>사우나 소모품 월간 보고</h1><div class="rmeta">${ymKo(ym)} · 작성일 ${now.getFullYear()}.${now.getMonth()+1}.${now.getDate()} · 금액 ${VAT}</div></div>
-      ${!apprOn?'':`<table class="appr"><tr><th>담당</th><th>팀장</th><th>본부장</th></tr><tr><td></td><td></td><td></td></tr></table>`}</div>
+    <div class="rh"><div><h1>사우나 소모품 월간 보고</h1><div class="rmeta">${ymKo(ym)} · 작성일 ${now.getFullYear()}.${now.getMonth()+1}.${now.getDate()} · 금액 ${VAT}</div></div></div>
     <h3>1. 요약</h3>
-    <div class="rk"><div><span>구매 금액</span><b>${won(cur)}</b><span>원</span></div><div><span>예산 집행률</span><b>${bud?(cur/bud*100).toFixed(0)+'%':'-'}</b><span>${bud?'예산 '+won(bud)+'원':'예산 미입력'}</span></div>
+    <div class="rk"><div><span>구매 금액</span><b>${won(cur)}</b><span>원</span></div>${bud?`<div><span>예산 집행률</span><b>${(cur/bud*100).toFixed(0)}%</b><span>예산 ${won(bud)}원</span></div>`:`<div><span>전월 대비</span><b>${spend(addYm(ym,-1))?((cur-spend(addYm(ym,-1)))/spend(addYm(ym,-1))*100>=0?'+':'')+((cur-spend(addYm(ym,-1)))/spend(addYm(ym,-1))*100).toFixed(0)+'%':'-'}</b><span>전월 ${won(spend(addYm(ym,-1)))}원</span></div>`}
       <div><span>${VIS}</span><b>${vis?won(vis):'-'}</b><span>명</span></div><div><span>입장객 1인당 비용</span><b>${vis?won(cur/vis):'-'}</b><span>원</span></div></div>
     <h3>2. 품목별 현황</h3>
     <table class="rt"><thead><tr><th>품목</th><th>단위</th><th>전월 말 재고</th><th>구매</th><th>사용량</th><th>월말 재고</th><th>1만 명당 사용</th><th>구매 금액(원)</th></tr></thead><tbody>
       ${rows.map(r=>`<tr><td>${esc(r.it.name)}</td><td style="text-align:center">${esc(r.it.unit)}</td>${td(r.pre,fmt1)}${td(r.buy,fmt1)}<td>${r.use==null?'-':fmt1(r.use)}</td>${td(r.end,fmt1)}<td>${r.use!=null&&vis?(r.use/vis*10000).toFixed(1):'-'}</td>${td(r.amt)}</tr>`).join('')}
       <tr class="tot"><td colspan="7">합계</td><td>${won(cur)}</td></tr></tbody></table>
-    <h3>3. 예산 대비 (${Y}년 누계, 단위: 만원)</h3>
+    <h3>3. ${ytdB?'예산 대비':'월별 구매액'} (${Y}년 누계, 단위: 만원)</h3>
     <table class="rt"><thead><tr><th>구분</th>${ms.map(m=>`<th>${mKo(m)}</th>`).join('')}<th>누계</th></tr></thead><tbody>
-      <tr><td>예산</td>${ms.map(m=>td(budgetOf(m),man)).join('')}<td>${man(ytdB)}</td></tr>
-      <tr><td>구매액</td>${ms.map(m=>td(spend(m),man)).join('')}<td>${man(ytdS)}</td></tr>
-      <tr class="tot"><td>집행률</td>${ms.map(m=>`<td>${budgetOf(m)?(spend(m)/budgetOf(m)*100).toFixed(0)+'%':'-'}</td>`).join('')}<td>${ytdB?(ytdS/ytdB*100).toFixed(0)+'%':'-'}</td></tr></tbody></table>
+      ${ytdB?`<tr><td>예산</td>${ms.map(m=>td(budgetOf(m),man)).join('')}<td>${man(ytdB)}</td></tr>`:''}
+      <tr${ytdB?'':' class="tot"'}><td>구매액</td>${ms.map(m=>td(spend(m),man)).join('')}<td>${man(ytdS)}</td></tr>
+      ${ytdB?`<tr class="tot"><td>집행률</td>${ms.map(m=>`<td>${budgetOf(m)?(spend(m)/budgetOf(m)*100).toFixed(0)+'%':'-'}</td>`).join('')}<td>${ytdB?(ytdS/ytdB*100).toFixed(0)+'%':'-'}</td></tr>`:`<tr><td>1인당(원)</td>${ms.map(m=>`<td class="${S.visitors[m]?'':'zero'}">${S.visitors[m]?won(spend(m)/S.visitors[m]):'-'}</td>`).join('')}<td>${(()=>{const v=ms.reduce((s,m)=>s+(S.visitors[m]||0),0);return v?won(ytdS/v):'-'})()}</td></tr>`}</tbody></table>
     <h3>4. ${mKo(nx)} 구매 계획</h3>
     ${pr.length?`<table class="rt"><thead><tr><th>품목</th><th>예상 사용</th><th>최소 보유</th><th>구매 수량</th><th>단가</th><th>예상 금액(원)</th><th>구매처</th></tr></thead><tbody>
-      ${pr.map(r=>`<tr><td>${esc(r.it.name)}</td><td>${r.exp.toFixed(1)}</td><td>${r.it.min||0}</td><td><b>${qtyTxt(r.it,r.rec)}</b></td><td>${priceTxt(r.it,r.price)||'-'}</td>${td(r.amt)}<td style="text-align:left;font-weight:400">${esc((vendorById(r.it.vendorId)||{}).name||'')}</td></tr>`).join('')}
+      ${pr.map(r=>`<tr><td>${esc(r.it.name)}</td><td>${r.exp.toFixed(1)}</td><td>${fmt1(r.min)}</td><td><b>${qtyTxt(r.it,r.rec)}</b></td><td>${priceTxt(r.it,r.price)||'-'}</td>${td(r.amt)}<td style="text-align:left;font-weight:400">${esc((vendorById(r.it.vendorId)||{}).name||'')}</td></tr>`).join('')}
       <tr class="tot"><td colspan="5">합계</td><td>${won(pt)}</td><td></td></tr></tbody></table>
       <div class="rnote">예상 ${VIS} ${pv.v?won(pv.v)+'명':'-'} (${pv.opts[pv.key].l}) × 품목별 1인당 사용량 기준. 구매 수량 = 예상 사용 + 최소 보유 − 남은 수량.</div>`
       :`<div class="rnote">${active().some(i=>stockNow(i.id)!=null)?`재고가 충분해서 ${mKo(nx)} 구매 계획이 없어요.`:'재고 기록이 없어 구매 계획을 계산하지 못했어요.'}</div>`}
@@ -919,17 +971,17 @@ function repMonth(){const ym=repYm,nx=addYm(ym,1),cur=spend(ym),bud=budgetOf(ym)
 function repPlan(){const T=planYm,pv=planVisitors(T),rows=planRows(T,pv.v),buy=rows.filter(r=>r.rec),total=rows.reduce((s,r)=>s+r.amt,0),bud=budgetOf(T),pct=bud?total/bud*100:0,saved=S.plans[T];
   return `<div class="bar-row">${monNav('plan-mon',T)}${saved?`<span class="tag t-ok">저장한 계획 있음 · ${esc(saved.savedAt||'')}</span>`:''}</div>
   <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi"><div class="l">${mKo(T)} 예상 구매액</div><div class="v num">${won(total)}<span>원</span></div><div class="s">${bud?`예산의 ${pct.toFixed(0)}%`:'예산 미입력'}</div></div>
+    <div class="kpi"><div class="l">${mKo(T)} 예상 구매액</div><div class="v num">${won(total)}<span>원</span></div><div class="s">${bud?`예산의 ${pct.toFixed(0)}%`:`${mKo(addYm(T,-12))}(작년) 실제 ${won(spend(addYm(T,-12)))}원`}</div></div>
     <div class="kpi"><div class="l">예상 ${VIS}</div><div class="v num">${pv.v?won(pv.v):'-'}<span>명</span></div><div class="s">${pv.opts[pv.key].l}</div></div>
     <div class="kpi"><div class="l">구매할 품목</div><div class="v num">${buy.length}<span>개</span></div><div class="s">전체 ${rows.length}개 중</div></div></div>
   <div class="card"><h2>품목별 구매 수량</h2><div class="tw"><table style="min-width:560px"><thead><tr><th>품목</th><th>계산 기준</th><th class="num">예상 사용</th><th class="num">남은 수량</th><th class="num">최소 보유</th><th class="num">살 수량</th><th class="num">예상 금액</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr class="click" data-item="${r.it.id}"><td>${esc(r.it.name)}</td><td style="color:var(--sub);font-size:13px">${r.basis}</td><td class="num">${r.exp.toFixed(1)}</td><td class="num">${fmt1(r.st)}</td><td class="num">${r.it.min||0}</td>
+    ${rows.map(r=>`<tr class="click" data-item="${r.it.id}"><td>${esc(r.it.name)}</td><td style="color:var(--sub);font-size:13px">${r.basis}</td><td class="num">${r.exp.toFixed(1)}</td><td class="num">${fmt1(r.st)}</td><td class="num">${fmt1(r.min)}</td>
       <td class="num">${r.rec?`<b>${qtyTxt(r.it,r.rec)}</b>`:'<span class="tag t-ok">불필요</span>'}</td><td class="num">${r.rec?(r.price?won(r.amt)+'원':'<span class="tag t-mute">단가 없음</span>'):'-'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>합계</td><td></td><td></td><td></td><td></td><td class="num">${buy.length}개 품목</td><td class="num">${won(total)}원</td></tr></tfoot></table></div>
     <div class="btns"><button class="btn ghost" data-act="plan-save">${saved?'계획 다시 저장':'이 계획 저장'}</button><button class="btn ghost" data-act="plan-copy">목록 복사 (엑셀용)</button><button class="btn" data-act="plan-bulk" ${buy.length?'':'disabled'}>이 수량으로 구매 입력</button></div></div>
   <div class="card"><h2>예상 입장객 기준</h2><div class="seg small" style="flex-wrap:wrap">${Object.entries(pv.opts).map(([k,o])=>`<button class="${pv.key===k?'on':''}" data-src="${k}">${o.l}${k!=='manual'?` · ${o.v?won(o.v):'-'}`:''}</button>`).join('')}</div>
     ${pv.key==='manual'?`<label for="planVis">예상 입장객 (명)</label><input id="planVis" class="num" type="number" inputmode="numeric" value="${esc(planManual)}" style="max-width:220px">`:''}
-    <div class="hint">살 수량 = 예상 사용량 + 최소 보유량 − 남은 수량 (올림). 예상 사용량 = 예상 입장객 × 1인당 사용량이고, 1인당 자료가 없는 품목은 최근 3개월 평균을 써요.</div></div>
+    <div class="hint">살 수량 = 예상 사용량 + 최소 보유량 − 남은 수량 (올림). 최소 보유량은 그 달·다음 달 중 많은 쪽 예상 사용량의 ${coverDays()}일치예요(품목에서 직접 정한 값이 있으면 그 값). 예상 사용량 = 예상 입장객 × 1인당 사용량이고, 1인당 자료가 없는 품목은 최근 3개월 평균을 써요.</div></div>
   ${saved?compareHtml(T,saved):''}`}
 function compareHtml(ym,pl){const av=S.visitors[ym]||0,aa=spend(ym),bud=budgetOf(ym);
   return `<div class="card"><h2>계획과 실제 비교 <small>${ymKo(ym)}</small></h2><div class="tw"><table style="min-width:420px"><thead><tr><th>항목</th><th class="num">계획</th><th class="num">실제</th><th class="num">차이</th></tr></thead><tbody>
@@ -942,17 +994,18 @@ function repAnnual(){const Y=annYear,{months,rows}=annualPlan(Y);
   const mAmt=months.map((m,i)=>rows.reduce((s,r)=>s+r.cells[i].amt,0)),mBud=months.map(budgetOf),tg=months.map(m=>Number(S.targets[m])||0);
   const tot=mAmt.reduce((a,b)=>a+b,0),tb=mBud.reduce((a,b)=>a+b,0),cur=curYm(),noTg=tg.filter(v=>!v).length;
   const vis=Object.keys(S.visitors).filter(k=>S.visitors[k]>0).sort();
-  return `<div class="bar-row">${monNav('ann-nav','',Y+'년')}<div style="display:flex;gap:8px"><button class="btn ghost sm" data-act="ann-copy">표 복사 (엑셀용)</button><button class="btn ghost sm" data-act="go-year">목표·예산 입력</button></div></div>
+  return `<div class="bar-row">${monNav('ann-nav','',Y+'년')}<div style="display:flex;gap:8px"><button class="btn ghost sm" data-act="ann-copy">표 복사 (엑셀용)</button><button class="btn ghost sm" data-act="go-year">목표 입장객 입력</button></div></div>
   <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi"><div class="l">${Y}년 예상 구매액</div><div class="v num">${won(tot/10000)}<span>만원</span></div><div class="s">${Y==cur.slice(0,4)?`${mKo(cur)}부터 연말까지`:'1~12월'}</div></div>
-    <div class="kpi"><div class="l">${Y}년 예산</div><div class="v num">${tb?won(tb/10000):'-'}<span>만원</span></div><div class="s">${tb?`예상 구매액은 예산의 ${(tot/tb*100).toFixed(0)}%`:'예산 미입력'}</div></div>
+    ${tb?`<div class="kpi"><div class="l">${Y}년 예산 (관리 품목)</div><div class="v num">${won(tb/10000)}<span>만원</span></div><div class="s">예상 구매액은 예산의 ${(tot/tb*100).toFixed(0)}%</div></div>`
+      :`<div class="kpi"><div class="l">${Y-1}년 실제 구매액</div><div class="v num">${won(months.reduce((s,m)=>s+spend(addYm(m,-12)),0)/10000)}<span>만원</span></div><div class="s">같은 품목 기준 비교</div></div>`}
     <div class="kpi"><div class="l">${Y}년 목표 입장객</div><div class="v num">${won(tg.reduce((a,b)=>a+b,0))}<span>명</span></div><div class="s">${noTg?`${noTg}개월 목표 없음`:'12개월 모두 입력됨'}</div></div></div>
   ${noTg?`<div class="note warn">목표 입장객이 없는 달은 "작년 같은 달 사용량" 또는 "최근 평균"으로 계산했어요. ${Y}년 목표를 넣으면 더 정확해져요.</div>`:''}
   <div class="card"><h2>월별 구매 수량 <small>위: 살 수량 · 아래: 예상 사용량</small></h2><div class="tw"><table style="min-width:860px;font-size:13px"><thead><tr><th>품목</th>${months.map(m=>`<th class="num">${mKo(m)}</th>`).join('')}<th class="num">합계</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td><b>${esc(r.it.name)}</b><div style="font-size:11px;color:var(--sub)">${esc(r.it.unit)}</div></td>${r.cells.map(c=>`<td class="num" title="${c.basis}" style="${c.past?'color:#b3c0bd':''}">${c.past?'-':`<b>${c.qty||'-'}</b>`}<div style="font-size:11px;color:var(--sub)">${c.exp.toFixed(1)}</div></td>`).join('')}
       <td class="num"><b>${won(r.cells.reduce((s,c)=>s+c.qty,0))}</b><div style="font-size:11px;color:var(--sub)">${r.cells.reduce((s,c)=>s+c.exp,0).toFixed(0)}</div></td></tr>`).join('')}</tbody>
     <tfoot><tr><td>예상 금액(만원)</td>${mAmt.map(v=>`<td class="num">${v?(v/10000).toFixed(0):'-'}</td>`).join('')}<td class="num">${won(tot/10000)}</td></tr>
-      <tr><td>예산(만원)</td>${mBud.map(v=>`<td class="num" style="font-weight:400">${v?(v/10000).toFixed(0):'-'}</td>`).join('')}<td class="num">${tb?won(tb/10000):'-'}</td></tr></tfoot></table></div>
+      ${tb?`<tr><td>예산(만원)</td>${mBud.map(v=>`<td class="num" style="font-weight:400">${v?(v/10000).toFixed(0):'-'}</td>`).join('')}<td class="num">${won(tb/10000)}</td></tr>`:''}</tfoot></table></div>
     <div class="hint">· 계산: 그 달 목표 입장객 × 지난 해 <b>같은 달</b>의 1인당 사용량 평균 (성수기·비수기 차이를 반영해요). 같은 달 자료가 없으면 전체 평균 1인당 사용량, 목표가 없으면 작년 같은 달 사용량을 써요.<br>
       · 살 수량은 지금 남은 재고에서 시작해 달마다 "예상 사용 + 최소 보유 − 남은 수량"으로 이어서 계산해요. 지난 달은 회색으로 비워 두었어요.<br>
       · 실적 입장객 자료: ${vis.length?`${ymKo(vis[0])} ~ ${ymKo(vis[vis.length-1])} (${vis.length}개월)`:'아직 없어요'}. 칸에 마우스를 올리면 계산 기준이 보여요.</div></div>`}
@@ -966,7 +1019,7 @@ function repAna(){const ym=repYm;if(!active().length)return'<div class="card"><d
   const spendV=months.map(spend),budV=months.map(budgetOf);
   return `<div class="bar-row">${monNav('rep-mon',ym,ymKo(ym)+'까지 12개월')}</div>
   <div class="cols" style="margin-top:0">
-    <div class="card"><h2>월별 구매 금액 <span class="legend"><span><i style="background:#11756a"></i>구매액</span><span><i style="background:#e98a2a"></i>예산</span></span></h2><div class="chart">${bars(months,spendV,budV,ym)}</div></div>
+    <div class="card"><h2>월별 구매 금액 <span class="legend"><span><i style="background:#11756a"></i>구매액</span>${budV.some(v=>v)?'<span><i style="background:#e98a2a"></i>예산</span>':''}</span></h2><div class="chart">${bars(months,spendV,budV,ym)}</div></div>
     <div class="card"><h2>입장객과 사용량 <select id="anaItem" style="width:auto;padding:6px 8px;font-size:13px">${active().map(x=>`<option value="${x.id}" ${x.id===anaItem?'selected':''}>${esc(x.name)}</option>`).join('')}</select></h2>
       <div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="입장객과 사용량"><line x1="${L}" x2="${W-L}" y1="${H-B}" y2="${H-B}" stroke="#dfe7e5"/>
       ${vis.map((v,i)=>`<rect x="${(L+i*bw+bw*.22).toFixed(1)}" y="${yv(v).toFixed(1)}" width="${(bw*.56).toFixed(1)}" height="${Math.max(0,H-B-yv(v)).toFixed(1)}" rx="3" fill="#2f6fb8" opacity=".22"><title>${ymKo(months[i])} ${won(v)}명</title></rect><text x="${cx(i).toFixed(1)}" y="${H-7}" text-anchor="middle" font-size="11" fill="#667a76">${mKo(months[i])}</text>`).join('')}
@@ -990,6 +1043,11 @@ function vSet(){const hiddenEq=S.items.filter(i=>!isCons(i)).length;
     <div class="card"><h2>구매처 <button class="link" data-act="new-vendor">＋ 구매처 추가</button></h2>
       ${S.vendors.map(v=>`<button class="log" data-vendor="${v.id}"><div class="b"><div class="t">${esc(v.name)}</div><div class="m">${esc(v.method)}${v.contact?' · '+esc(v.contact):''}${v.phone?' · '+esc(v.phone):''}${v.memo?' · '+esc(v.memo):''}</div></div><span class="tag t-mute">${S.items.filter(i=>i.vendorId===v.id).length}개 품목</span></button>`).join('')||'<div class="empty">아직 구매처가 없어요. 구매 입력 때 바로 추가할 수도 있어요.</div>'}</div>
   </div>
+  <div class="card"><h2>최소 보유량 기준</h2>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label for="coverDays" style="margin:0">이번 달·다음 달 중 많은 쪽 예상 사용량의</label><input id="coverDays" class="num" type="number" inputmode="numeric" min="1" max="60" value="${coverDays()}" style="width:90px"><span>일치를 최소로 남겨요</span></div>
+    <div class="hint">예상 사용량은 구매 계획과 같은 방식(목표 입장객 × 같은 달 1인당 사용량 → 없으면 작년 같은 달 → 최근 평균)으로 계산해요. 주문부터 입고까지 걸리는 날 + 여유분으로 정하면 돼요(보통 7~14일). 품목별로 직접 정하려면 품목 정보 수정에서 "직접 입력"을 고르세요.</div>
+    <div class="tw" style="margin-top:8px"><table style="font-size:13px;min-width:380px"><thead><tr><th>품목</th><th class="num">이번 달 예상 사용</th><th class="num">최소 보유량</th><th>방식</th></tr></thead><tbody>
+      ${active().map(it=>`<tr class="click" data-item="${it.id}"><td>${esc(it.name)}</td><td class="num">${fmt1(Math.round(expFor(it,curYm()).exp*10)/10)}${esc(it.unit)}</td><td class="num"><b>${minOf(it)}${esc(it.unit)}</b></td><td>${isManualMin(it)?'<span class="tag t-mute">직접</span>':'<span class="tag t-ok">자동</span>'}</td></tr>`).join('')}</tbody></table></div></div>
   <div class="card"><h2>백업 · 내보내기</h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn ghost sm" data-act="exp-json">백업 파일 받기(JSON)</button>
@@ -1029,6 +1087,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
   if(d.tab){go(d.tab);return}
   if(d.inseg){inSeg=d.inseg;if(inSeg!=='bulk')prefillBulk=null;render();return}
   if(d.rseg){repSeg=d.rseg;render();return}
+  if(d.logitem!==undefined){logItem=d.logitem;logLimit=60;render();return}
+  if(d.logmon!==undefined){logMon=d.logmon;logLimit=60;render();const c=$('#logListCard');if(c)c.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(d.cat!==undefined&&t.closest('#tab-items')){itemCat=d.cat;render();return}
   if(d.item){itemDetail(d.item);return}
   if(d.edit){editBuy(d.edit);return}
@@ -1073,7 +1133,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
     case 'item-del':armOrRun(t,()=>{const id=d.id;S.purchases.filter(p=>p.itemId===id).map(p=>p.id).forEach(x=>removeRec('purchases',x));S.stockLogs.filter(l=>l.itemId===id).map(l=>l.id).forEach(x=>removeRec('stockLogs',x));
       removeRec('items',id);save();closeSheet();render();toast('품목을 삭제했어요')},'정말 삭제할까요? 한 번 더 누르세요');break;
     case 'toggle-off':showOff=!showOff;render();break;
-    case 'log-mon':logYm=addYm(logYm,D);render();break;
+    case 'log-year':logYear+=D;logMon='';logLimit=60;render();break;
+    case 'log-more':logLimit+=60;render();break;
     case 'rep-mon':repYm=addYm(repYm,D);render();break;
     case 'plan-mon':planYm=addYm(planYm,D);render();break;
     case 'ann-nav':annYear+=D;render();break;
@@ -1102,7 +1163,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
         else rows.push([a.l.date,'재고 확인',it.name,a.l.qty,it.unit,'','','',a.l.memo||''])});
       download(`사우나소모품_기록_${today()}.csv`,toCsv(rows),'text/csv;charset=utf-8');break}
     case 'exp-stock':{const rows=[['분류','품목','단위','남은 수량','최소 보유량','단가','재고 금액','구매처','상태']];
-      consAll().forEach(it=>{const st=stockNow(it.id),pr=priceOf(it);rows.push([catOf(it).name,it.name,it.unit,st??'',it.min||0,pr??'',st!=null&&pr?st*pr:'',(vendorById(it.vendorId)||{}).name||'',it.active===false?'사용 안 함':isLow(it)?'부족':'정상'])});
+      consAll().forEach(it=>{const st=stockNow(it.id),pr=priceOf(it);rows.push([catOf(it).name,it.name,it.unit,st??'',minOf(it),pr??'',st!=null&&pr?st*pr:'',(vendorById(it.vendorId)||{}).name||'',it.active===false?'사용 안 함':isLow(it)?'부족':'정상'])});
       download(`사우나소모품_재고_${today()}.csv`,toCsv(rows),'text/csv;charset=utf-8');break}
     case 'legacy':importLegacy(false);break;
     case 'xl-cancel':xlPrev=null;render();break;
@@ -1111,19 +1172,21 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-tab
       S.cats.filter(c=>c.group==='equip').map(c=>c.id).forEach(id=>removeRec('cats',id));save();render();toast('비품 품목을 지웠어요')},'정말 지울까요? 한 번 더 누르세요');break;
     case 'ask-demo':case 'ask-reset':{const m=d.act;$('#confirmArea').innerHTML=`<div class="note bad">${m==='ask-demo'?'지금 데이터를 지우고 체험용 예시 데이터로 바꿔요.':'모든 품목·기록을 지우고 처음 상태(3개 품목)로 되돌려요. 되돌릴 수 없어요.'+(mode==='cloud'?' 이후 기존 데이터는 "다시 가져오기"로 불러올 수 있어요.':'')}</div>
       <div class="btns" style="justify-content:flex-start"><button class="btn danger sm" style="flex:0 0 auto" data-act="do-reset" data-m="${m}">확인, 진행하기</button></div>`;break}
-    case 'do-reset':replaceAll(d.m==='ask-demo'?demoState():startState());save();logYm='';repYm='';planYm='';render();toast('완료했어요');break;
+    case 'do-reset':replaceAll(d.m==='ask-demo'?demoState():startState());save();logYear=0;logMon='';repYm='';planYm='';render();toast('완료했어요');break;
   }});
 $('#veil').addEventListener('click',e=>{if(e.target.id==='veil')closeSheet()});
 document.addEventListener('input',e=>{const id=e.target.id;
   if(id==='bq'||id==='bpr'){updBuy('b');return}if(id==='eq'||id==='epr'){updBuy('e');return}
-  if(e.target.dataset.bq||e.target.dataset.bp)bulkTotals()});
+  if(e.target.dataset.bq||e.target.dataset.bp)bulkTotals();
+  if(id==='logQ'){logQ=e.target.value;logLimit=60;const el=$('#logList');if(el)el.innerHTML=logListHtml()}});
 document.addEventListener('change',e=>{const t=e.target,id=t.id;
   if(id==='bv'||id==='ev'){const p=id[0];$('#'+p+'vnw').classList.toggle('hidden',t.value!=='__new');if(t.value==='__new')$('#'+p+'vn').focus()}
   if(id==='logType'){logType=t.value;render()}
-  if(id==='logItem'){logItem=t.value;render()}
   if(id==='anaItem'){anaItem=t.value;render()}
+  if(id==='coverDays'){const v=Math.round(Number(t.value));if(v>=1&&v<=60){setMap('meta','coverDays',v);save();render();toast(`최소 보유량을 ${v}일치로 바꿨어요`)}else toast('1~60 사이로 넣어주세요')}
+  if(id==='fmn'&&t.value!==''){const r=document.querySelector('input[name=fmm][value=manual]');if(r)r.checked=true}
+  if(id==='logMon'){logMon=t.value;logLimit=60;render()}
   if(id==='planVis'){planManual=t.value;render()}
-  if(id==='repAppr'){apprOn=t.checked;pref('appr',apprOn?'1':'0');render()}
   if(t.dataset.photo){setPhoto(t.dataset.photo,t.files[0])}
   if(t.dataset.ph){const v=t.value.trim();setMap('perHeadSet',t.dataset.ph,v===''?null:Number(v)/10000);save();render();toast('조정값을 저장했어요')}
   if(id==='xlFile'&&t.files.length){const fs=[...t.files];xlBusy=true;render();readExcel(fs).then(p=>{xlPrev=p;xlBusy=false;render()}).catch(err=>{console.warn(err);xlBusy=false;render();toast(err&&err.message&&!/timeout|load/.test(err.message)?err.message:'엑셀을 읽지 못했어요 · 인터넷 연결을 확인하세요')})}

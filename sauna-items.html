@@ -438,7 +438,14 @@ const PATCHES=[{id:'price-2026-11-28',run(){
   {id:'bath-cat-ops',run(){let c=S.cats.find(c=>c.name==='운영'&&c.group!=='equip');if(!c){c={id:uid('c'),name:'운영',color:2,group:'cons'};upsert('cats',c)}
     S.items.filter(i=>['버블액','입욕제'].includes(String(i.name).replace(/\s/g,''))).forEach(i=>patch('items',i.id,{catId:c.id}))}},
   /* 2026년 구매 중 단가가 빈 기록에 현재 단가(2026년 단가) 채우기 */
-  {id:'price-2026-yearfill',run(){S.purchases.forEach(p=>{if(p.date.slice(0,4)!=='2026'||has(p.price))return;const it=itemById(p.itemId);if(it&&has(it.price))patch('purchases',p.id,{price:Number(it.price)})})}}];
+  {id:'price-2026-yearfill',run(){S.purchases.forEach(p=>{if(p.date.slice(0,4)!=='2026'||has(p.price))return;const it=itemById(p.itemId);if(it&&has(it.price))patch('purchases',p.id,{price:Number(it.price)})})}},
+  /* 2025년 단가 (사용자 제공, 부가세 포함): 2025년 구매 기록 전체에 적용. 롤백은 box 단가 ÷ 10 */
+  {id:'price-2025-yearfill',run(){const P={'샴푸':7850,'바디워시':7850,'롤백':31000,'버블액':120000,'입욕제':65000};
+    Object.entries(P).forEach(([n,pr])=>{const it=S.items.find(i=>nzName(i.name)===n)||S.items.find(i=>nzName(i.name).includes(n));if(!it)return;
+      S.purchases.filter(p=>p.itemId===it.id&&p.date.slice(0,4)==='2025').forEach(p=>patch('purchases',p.id,{price:pr/fac(it)}))})}},
+  /* 워터파크 전체 입장객 실적 (사용자 제공 엑셀) */
+  {id:'visitors-2025-2026',run(){const V={2025:[29802,31170,15735,17347,30211,36937,69164,70587,16855,19401,11700,15721],2026:[24424,31720,11265,16839,33571,28313,59908,68500,15799,14192,12091]};
+    Object.entries(V).forEach(([y,a])=>a.forEach((v,i)=>setMap('visitors',y+'-'+pad(i+1),v)))}}];
 function patchData(){let ch=false;PATCHES.forEach(p=>{if(S.meta[p.id])return;p.run();setMap('meta',p.id,today());ch=true});return ch}
 /* 비품 분류 정리: 품목이 없는 비품 분류는 지우고, 분류에 큰 분류 표시가 없으면 소모품으로 */
 function tidy(){let ch=false;

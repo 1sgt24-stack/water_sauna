@@ -335,7 +335,7 @@ const FIREBASE_CONFIG={apiKey:"AIzaSyABtJnwGMAhEPEfsSCSf_cd6glzB_Fwan08",authDom
   storageBucket:"test-f82c9.firebasestorage.app",messagingSenderId:"1064652444751",appId:"1:1064652444751:web:0788f6687896aedf82063a"};
 const CLOUD_COL='sauna_purchase_v1',CLOUD_DOC='live_v3',LEGACY_COL='sauna_v1',LOCAL_KEY='sauna_items_v3';
 const CLIENT=Math.random().toString(36).slice(2);
-const ARR=['cats','items','vendors','purchases','stockLogs'], MAP=['visitors','targets','budgets','perHeadSet','usage','plans'];
+const ARR=['cats','items','vendors','purchases','stockLogs'], MAP=['visitors','targets','budgets','perHeadSet','usage','plans','meta'];
 const VIS='워터파크 입장객', VAT='부가세 포함';
 const PALETTE=['#11756a','#2f6fb8','#b5772f','#7a4f8c','#b0485f','#5e6e2c'];
 const PAL_SOFT=['#e3f4f0','#e3ecf7','#f5ebdd','#efe6f3','#f6e3e7','#ebefdd'];
@@ -409,12 +409,20 @@ async function initStore(){
     if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
     fdb=firebase.firestore();docRef=fdb.collection(CLOUD_COL).doc(CLOUD_DOC);
     const snap=await withTimeout(docRef.get(),7000);mode='cloud';
-    if(snap.exists){S=normalize(snap.data().state);if(tidy())await flush()}
-    else{S=startState();await importLegacy(true);dirty={__all:true};await flush()}
+    if(snap.exists){S=normalize(snap.data().state);const a=tidy(),b=patchData();if(a||b)await flush()}
+    else{S=startState();await importLegacy(true);patchData();dirty={__all:true};await flush()}
     docRef.onSnapshot(s=>{if(s.metadata.hasPendingWrites)return;const d=s.data();if(!d||d.clientId===CLIENT)return;
       S=mergeState(normalize(d.state),S,dirty);render()});
   }catch(e){mode='local';let l=null;try{l=JSON.parse(localStorage.getItem(LOCAL_KEY)||'null')}catch(_){}
-    S=normalize(l||startState());tidy();dirty={};try{localStorage.setItem(LOCAL_KEY,JSON.stringify(S))}catch(_){}}}
+    S=normalize(l||startState());tidy();patchData();dirty={};try{localStorage.setItem(LOCAL_KEY,JSON.stringify(S))}catch(_){}}}
+/* 한 번만 적용하는 자료 수정 (적용 기록은 meta에 남겨 다시 실행하지 않음) */
+const PATCHES=[{id:'price-2026-11-28',run(){
+  const nz=x=>String(x||'').replace(/\s|대용량|\(.*?\)/g,''),find=n=>S.items.find(i=>nz(i.name)===n)||S.items.find(i=>nz(i.name).includes(n));
+  const set=(n,d)=>{const it=find(n);if(it)patch('items',it.id,d)};
+  set('샴푸',{price:8975});set('바디워시',{price:8975});set('롤백',{unit:'box',price:41000});
+  const cat=(S.cats.find(c=>c.name==='어메니티'&&c.group!=='equip')||S.cats.find(c=>c.group!=='equip')||{}).id||'';
+  [['버블액',120000],['입욕제',65000]].forEach(([n,pr])=>{const it=find(n);if(it)patch('items',it.id,{price:pr,active:true});else upsert('items',newItem({name:n,catId:cat,unit:'개',price:pr}))})}}];
+function patchData(){let ch=false;PATCHES.forEach(p=>{if(S.meta[p.id])return;p.run();setMap('meta',p.id,today());ch=true});return ch}
 /* 비품 분류 정리: 품목이 없는 비품 분류는 지우고, 분류에 큰 분류 표시가 없으면 소모품으로 */
 function tidy(){let ch=false;
   S.cats.filter(c=>c.group==='equip'&&!S.items.some(i=>i.catId===c.id)).map(c=>c.id).forEach(id=>{removeRec('cats',id);ch=true});

@@ -422,7 +422,18 @@ const PATCHES=[{id:'price-2026-11-28',run(){
   set('샴푸',{price:8975});set('바디워시',{price:8975});set('롤백',{unit:'box',price:41000});
   const cat=(S.cats.find(c=>c.name==='어메니티'&&c.group!=='equip')||S.cats.find(c=>c.group!=='equip')||{}).id||'';
   [['버블액',120000],['입욕제',65000]].forEach(([n,pr])=>{const it=find(n);if(it)patch('items',it.id,{price:pr,active:true});else upsert('items',newItem({name:n,catId:cat,unit:'개',price:pr}))})}},
-  {id:'rollback-unit-2026-11-28',run(){const it=S.items.find(i=>String(i.name).replace(/\s/g,'')==='롤백');if(it)patch('items',it.id,{unit:'개',orderUnit:'box',pack:10,price:4100})}}];
+  {id:'rollback-unit-2026-11-28',run(){const it=S.items.find(i=>String(i.name).replace(/\s/g,'')==='롤백');if(it)patch('items',it.id,{unit:'개',orderUnit:'box',pack:10,price:4100})}},
+  /* 2026년 입욕제·버블액 월별 구매 수량 (엑셀). 소모량 기록이 없어 10월까지는 "그 달 구매량 = 그 달 사용량", 월말 재고 0으로 채움 */
+  {id:'bath-2026-purchases',run(){
+    const data={'입욕제':{'01':6,'02':6,'04':4,'05':4,'06':12,'08':6,'10':5},'버블액':{'06':10,'08':10,'10':10}};
+    Object.entries(data).forEach(([n,ms])=>{const it=S.items.find(i=>String(i.name).replace(/\s/g,'')===n);if(!it)return;
+      if(S.purchases.some(p=>p.itemId===it.id&&p.date>='2026-01-01'&&p.date<='2026-10-31'))return;
+      Object.entries(ms).forEach(([m,q])=>upsert('purchases',{id:uid('p'),date:'2026-'+m+'-01',itemId:it.id,qty:q,price:null,vendorId:'',memo:'월별 구매 합계 (날짜 미상, 엑셀)',src:'excel'}));
+      upsert('stockLogs',{id:uid('s'),date:'2025-12-31',itemId:it.id,qty:0,memo:'시작 재고 (가정)',src:'excel'});
+      for(let k=1;k<=10;k++){const ym='2026-'+pad(k);
+        upsert('stockLogs',{id:uid('s'),date:lastDay(ym),itemId:it.id,qty:0,memo:'월말 재고 0 (구매량 = 사용량으로 가정)',src:'excel'});
+        setMap('usage',ym,Object.assign({},S.usage[ym]||{},{[it.id]:ms[pad(k)]||0}))}});
+    S.purchases.sort((a,b)=>a.date.localeCompare(b.date))}}];
 function patchData(){let ch=false;PATCHES.forEach(p=>{if(S.meta[p.id])return;p.run();setMap('meta',p.id,today());ch=true});return ch}
 /* 비품 분류 정리: 품목이 없는 비품 분류는 지우고, 분류에 큰 분류 표시가 없으면 소모품으로 */
 function tidy(){let ch=false;
